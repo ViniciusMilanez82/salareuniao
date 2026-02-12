@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Card, CardTitle, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -5,35 +6,56 @@ import { Avatar } from '@/components/ui/Avatar'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useNavigate } from 'react-router-dom'
 import { ROUTES } from '@/config/routes'
+import { fetchMeetings } from '@/lib/api/meetings'
+import { fetchAgents } from '@/lib/api/agents'
 import {
   Calendar, Bot, TrendingUp, Clock, Plus, ArrowRight,
-  MessageSquare, Zap, BarChart3, Activity
+  MessageSquare, Zap, BarChart3
 } from 'lucide-react'
 
-const mockStats = [
-  { label: 'Sessões Ativas', value: '3', change: '+12%', icon: Calendar, color: 'text-primary-500 bg-primary-100 dark:bg-primary-900/30' },
-  { label: 'Agentes Criados', value: '12', change: '+4', icon: Bot, color: 'text-violet-500 bg-violet-100 dark:bg-violet-900/30' },
-  { label: 'Tempo Médio de Debate', value: '42min', change: '-8%', icon: Clock, color: 'text-accent-500 bg-accent-100 dark:bg-accent-900/30' },
-  { label: 'Insights Gerados', value: '89', change: '+23%', icon: TrendingUp, color: 'text-secondary-500 bg-secondary-100 dark:bg-secondary-900/30' },
-]
-
-const mockRecentSessions = [
-  { id: '1', title: 'Análise de Mercado LATAM', type: 'analysis', status: 'completed', agents: 4, duration: '38min', date: '2h atrás' },
-  { id: '2', title: 'Brainstorm Produto Q2', type: 'brainstorm', status: 'in_progress', agents: 6, duration: '25min', date: 'Agora' },
-  { id: '3', title: 'Revisão Estratégica Anual', type: 'strategy', status: 'scheduled', agents: 8, duration: '—', date: 'Em 3h' },
-  { id: '4', title: 'Debate Ética em IA', type: 'debate', status: 'completed', agents: 5, duration: '52min', date: 'Ontem' },
-]
-
-const mockTopAgents = [
-  { name: 'Analista Financeiro', role: 'Finanças', uses: 34, rating: 4.8 },
-  { name: 'Estrategista de Marketing', role: 'Marketing', uses: 28, rating: 4.6 },
-  { name: 'Advogado Cético', role: 'Jurídico', uses: 22, rating: 4.7 },
-  { name: 'Especialista em Dados', role: 'Data Science', uses: 19, rating: 4.5 },
-]
-
 export default function DashboardPage() {
-  const { user } = useAuthStore()
+  const { user, workspace } = useAuthStore()
   const navigate = useNavigate()
+  const [meetings, setMeetings] = useState<{ id: string; title: string; status: string; meeting_type: string; duration_minutes: number | null; scheduled_start: string | null; agent_count?: number }[]>([])
+  const [agents, setAgents] = useState<{ id: string; name: string; role: string; usage_count?: number; average_rating?: number }[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!workspace?.id) {
+      setLoading(false)
+      return
+    }
+    Promise.all([
+      fetchMeetings(workspace.id).then(setMeetings).catch(() => setMeetings([])),
+      fetchAgents(workspace.id).then(setAgents).catch(() => setAgents([])),
+    ]).finally(() => setLoading(false))
+  }, [workspace?.id])
+
+  const activeSessions = meetings.filter((m) => m.status === 'in_progress').length
+  const completedMeetings = meetings.filter((m) => m.status === 'completed')
+  const avgDuration = completedMeetings.length > 0
+    ? Math.round(completedMeetings.reduce((a, m) => a + (m.duration_minutes || 0), 0) / completedMeetings.length)
+    : 0
+
+  const stats = [
+    { label: 'Sessões Ativas', value: String(activeSessions), icon: Calendar, color: 'text-primary-500 bg-primary-100 dark:bg-primary-900/30' },
+    { label: 'Agentes Criados', value: String(agents.length), icon: Bot, color: 'text-violet-500 bg-violet-100 dark:bg-violet-900/30' },
+    { label: 'Tempo Médio de Debate', value: avgDuration ? `${avgDuration}min` : '—', icon: Clock, color: 'text-accent-500 bg-accent-100 dark:bg-accent-900/30' },
+    { label: 'Sessões Totais', value: String(meetings.length), icon: TrendingUp, color: 'text-secondary-500 bg-secondary-100 dark:bg-secondary-900/30' },
+  ]
+
+  const recentSessions = meetings.slice(0, 5).map((m) => ({
+    id: m.id,
+    title: m.title,
+    status: m.status,
+    agents: m.agent_count ?? 0,
+    duration: m.duration_minutes ? `${m.duration_minutes}min` : '—',
+    date: m.scheduled_start ? new Date(m.scheduled_start).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—',
+  }))
+
+  const topAgents = [...agents]
+    .sort((a, b) => (b.usage_count || 0) - (a.usage_count || 0))
+    .slice(0, 4)
 
   const getStatusBadge = (status: string) => {
     const map: Record<string, { variant: 'success' | 'warning' | 'info' | 'default'; label: string }> = {
@@ -69,20 +91,23 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {mockStats.map((stat) => (
-          <Card key={stat.label} interactive>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-body-sm text-gray-500">{stat.label}</p>
-                <p className="text-h2 mt-1">{stat.value}</p>
-                <p className="text-body-xs text-secondary-500 mt-1">{stat.change} vs. mês anterior</p>
+        {loading ? (
+          <div className="col-span-full text-center py-8 text-gray-500">Carregando...</div>
+        ) : (
+          stats.map((stat) => (
+            <Card key={stat.label} interactive>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-body-sm text-gray-500">{stat.label}</p>
+                  <p className="text-h2 mt-1">{stat.value}</p>
+                </div>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.color}`}>
+                  <stat.icon className="w-5 h-5" />
+                </div>
               </div>
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.color}`}>
-                <stat.icon className="w-5 h-5" />
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -97,26 +122,30 @@ export default function DashboardPage() {
             </div>
             <CardContent>
               <div className="space-y-3">
-                {mockRecentSessions.map((session) => (
-                  <div
-                    key={session.id}
-                    onClick={() => navigate(ROUTES.MEETINGS)}
-                    className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-                        <MessageSquare className="w-5 h-5 text-primary-500" />
+                {recentSessions.length === 0 ? (
+                  <p className="text-body-sm text-gray-500 py-4">Nenhuma sessão recente</p>
+                ) : (
+                  recentSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      onClick={() => navigate(ROUTES.MEETINGS)}
+                      className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                          <MessageSquare className="w-5 h-5 text-primary-500" />
+                        </div>
+                        <div>
+                          <p className="text-body-sm font-medium">{session.title}</p>
+                          <p className="text-body-xs text-gray-500">
+                            {session.agents} agentes &middot; {session.duration} &middot; {session.date}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-body-sm font-medium">{session.title}</p>
-                        <p className="text-body-xs text-gray-500">
-                          {session.agents} agentes &middot; {session.duration} &middot; {session.date}
-                        </p>
-                      </div>
+                      {getStatusBadge(session.status)}
                     </div>
-                    {getStatusBadge(session.status)}
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -132,20 +161,24 @@ export default function DashboardPage() {
           </div>
           <CardContent>
             <div className="space-y-3">
-              {mockTopAgents.map((agent, idx) => (
-                <div key={agent.name} className="flex items-center gap-3">
-                  <span className="text-body-xs text-gray-400 w-4">{idx + 1}</span>
-                  <Avatar name={agent.name} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-body-sm font-medium truncate">{agent.name}</p>
-                    <p className="text-body-xs text-gray-500">{agent.role}</p>
+              {topAgents.length === 0 ? (
+                <p className="text-body-sm text-gray-500 py-4">Nenhum agente ainda</p>
+              ) : (
+                topAgents.map((agent, idx) => (
+                  <div key={agent.id} className="flex items-center gap-3">
+                    <span className="text-body-xs text-gray-400 w-4">{idx + 1}</span>
+                    <Avatar name={agent.name} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-body-sm font-medium truncate">{agent.name}</p>
+                      <p className="text-body-xs text-gray-500">{agent.role}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-body-xs font-medium">{agent.usage_count ?? 0}x</p>
+                      <p className="text-body-xs text-accent-500">&#9733; {agent.average_rating ?? '-'}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-body-xs font-medium">{agent.uses}x</p>
-                    <p className="text-body-xs text-accent-500">&#9733; {agent.rating}</p>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

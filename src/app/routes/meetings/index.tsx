@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { fetchMeetings } from '@/lib/api/meetings'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -8,28 +10,43 @@ import { ROUTES } from '@/config/routes'
 import { MEETING_STATUS, MEETING_TYPES } from '@/config/constants'
 import type { MeetingStatus, MeetingType } from '@/types/database.types'
 import {
-  Plus, Search, Filter, Calendar, Clock, Bot,
+  Plus, Search, Calendar, Clock, Bot,
   Play, MoreVertical, ArrowRight
 } from 'lucide-react'
 
-const mockSessions = [
-  { id: '1', title: 'Análise de Impacto da Fusão ABC', meeting_type: 'analysis' as MeetingType, status: 'completed' as MeetingStatus, agents: ['Analista Financeiro', 'Advogado Cético', 'Estrategista', 'RH'], scheduled_start: '2026-02-11T14:00:00', duration_minutes: 45, tags: ['fusão', 'M&A'] },
-  { id: '2', title: 'Brainstorm de Produto Q2 2026', meeting_type: 'brainstorm' as MeetingType, status: 'in_progress' as MeetingStatus, agents: ['PM', 'Designer UX', 'Dev Lead', 'Marketing', 'Data', 'Suporte'], scheduled_start: '2026-02-12T10:00:00', duration_minutes: null, tags: ['produto', 'Q2'] },
-  { id: '3', title: 'Revisão Estratégica Anual', meeting_type: 'strategy' as MeetingType, status: 'scheduled' as MeetingStatus, agents: ['CEO', 'CFO', 'COO', 'CMO', 'CTO', 'CHRO', 'CLO', 'CSO'], scheduled_start: '2026-02-12T15:00:00', duration_minutes: null, tags: ['estratégia', '2026'] },
-  { id: '4', title: 'Debate sobre Ética em IA Generativa', meeting_type: 'debate' as MeetingType, status: 'completed' as MeetingStatus, agents: ['Filósofo', 'Engenheiro IA', 'Jurista', 'Sociólogo', 'Ativista'], scheduled_start: '2026-02-10T09:00:00', duration_minutes: 52, tags: ['ética', 'IA'] },
-  { id: '5', title: 'Negociação Contrato Enterprise', meeting_type: 'negotiation' as MeetingType, status: 'draft' as MeetingStatus, agents: ['Vendedor', 'Jurista'], scheduled_start: null, duration_minutes: null, tags: ['vendas', 'enterprise'] },
-]
+type SessionRow = {
+  id: string
+  title: string
+  meeting_type: MeetingType
+  status: MeetingStatus
+  agent_count?: number
+  scheduled_start: string | null
+  duration_minutes: number | null
+  tags: string[]
+}
 
 export default function SessionsListPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [sessions, setSessions] = useState<SessionRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const { workspace } = useAuthStore()
   const navigate = useNavigate()
 
-  const filtered = mockSessions.filter((s) => {
-    const matchesSearch = s.title.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || s.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
+  useEffect(() => {
+    if (!workspace?.id) {
+      setLoading(false)
+      return
+    }
+    fetchMeetings(workspace.id, statusFilter === 'all' ? undefined : statusFilter)
+      .then((data) => setSessions((data as SessionRow[]) || []))
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false))
+  }, [workspace?.id, statusFilter])
+
+  const filtered = sessions.filter((s) =>
+    s.title?.toLowerCase().includes(search.toLowerCase())
+  )
 
   const getStatusBadge = (status: MeetingStatus) => {
     const config = MEETING_STATUS[status]
@@ -83,7 +100,16 @@ export default function SessionsListPage() {
 
       {/* Sessions List */}
       <div className="space-y-3">
-        {filtered.map((session) => (
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">Carregando sessões...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">
+            Nenhuma sessão encontrada.{' '}
+            <button onClick={() => navigate(ROUTES.MEETING_CREATE)} className="text-primary-500 font-medium hover:underline">
+              Criar primeira sessão
+            </button>
+          </div>
+        ) : filtered.map((session) => (
           <Card
             key={session.id}
             interactive
@@ -119,24 +145,14 @@ export default function SessionsListPage() {
                       </span>
                     )}
                     <span className="flex items-center gap-1">
-                      <Bot className="w-3 h-3" /> {session.agents.length} agentes
+                      <Bot className="w-3 h-3" /> {session.agent_count ?? 0} agentes
                     </span>
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-4">
-                <div className="flex -space-x-2">
-                  {session.agents.slice(0, 4).map((agent) => (
-                    <Avatar key={agent} name={agent} size="xs" />
-                  ))}
-                  {session.agents.length > 4 && (
-                    <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-body-xs font-medium ring-2 ring-white dark:ring-gray-800">
-                      +{session.agents.length - 4}
-                    </div>
-                  )}
-                </div>
                 {session.status === 'in_progress' && (
-                  <Button size="sm" className="ml-2" onClick={(e) => { e.stopPropagation(); navigate(`/meetings/${session.id}/room`); }}>
+                  <Button size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/meetings/${session.id}/room`); }}>
                     Entrar <ArrowRight className="w-3 h-3" />
                   </Button>
                 )}
@@ -145,9 +161,9 @@ export default function SessionsListPage() {
                 </button>
               </div>
             </div>
-            {session.tags.length > 0 && (
+            {(session.tags?.length ?? 0) > 0 && (
               <div className="flex gap-1.5 mt-3 pt-3 border-t">
-                {session.tags.map((tag) => (
+                {(session.tags ?? []).map((tag) => (
                   <Badge key={tag}>{tag}</Badge>
                 ))}
               </div>

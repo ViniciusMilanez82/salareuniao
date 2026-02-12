@@ -1,24 +1,45 @@
+import { useState, useEffect } from 'react'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { fetchMeetings } from '@/lib/api/meetings'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { Avatar } from '@/components/ui/Avatar'
 import { Search, Calendar, Clock, Bot, FileText, Download, Play } from 'lucide-react'
-import { useState } from 'react'
 
-const mockArchive = [
-  { id: '1', title: 'Análise de Impacto da Fusão ABC', date: '11 Fev 2026', duration: '45min', agents: 4, topics: ['fusão', 'M&A', 'finanças'], sentiment: 'positive', insights: 12 },
-  { id: '2', title: 'Debate sobre Ética em IA Generativa', date: '10 Fev 2026', duration: '52min', agents: 5, topics: ['ética', 'IA', 'regulamentação'], sentiment: 'neutral', insights: 8 },
-  { id: '3', title: 'Estratégia de Preços Q1', date: '08 Fev 2026', duration: '38min', agents: 3, topics: ['preços', 'competição'], sentiment: 'positive', insights: 15 },
-  { id: '4', title: 'Revisão de Produto Beta', date: '05 Fev 2026', duration: '1h 10min', agents: 6, topics: ['produto', 'UX', 'bugs'], sentiment: 'negative', insights: 22 },
-]
+type ArchiveItem = {
+  id: string
+  title: string
+  scheduled_start: string | null
+  duration_minutes: number | null
+  agent_count?: number
+  tags: string[]
+}
 
 export default function SessionArchivePage() {
   const [search, setSearch] = useState('')
+  const [sessions, setSessions] = useState<ArchiveItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const { workspace } = useAuthStore()
 
-  const sentimentColors: Record<string, string> = {
-    positive: 'text-secondary-500',
-    negative: 'text-red-500',
-    neutral: 'text-gray-500',
+  useEffect(() => {
+    if (!workspace?.id) {
+      setLoading(false)
+      return
+    }
+    fetchMeetings(workspace.id, 'completed')
+      .then((data) => setSessions((data as ArchiveItem[]) || []))
+      .catch(() => setSessions([]))
+      .finally(() => setLoading(false))
+  }, [workspace?.id])
+
+  const filtered = sessions.filter((s) =>
+    s.title?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const formatDuration = (min: number | null) => {
+    if (!min) return '—'
+    if (min >= 60) return `${Math.floor(min / 60)}h ${min % 60}min`
+    return `${min}min`
   }
 
   return (
@@ -37,34 +58,41 @@ export default function SessionArchivePage() {
       </div>
 
       <div className="space-y-4">
-        {mockArchive.map((session) => (
-          <Card key={session.id} interactive>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-body font-semibold">{session.title}</h3>
-                  <Badge variant="success">Concluída</Badge>
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">Carregando...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">Nenhuma sessão concluída</div>
+        ) : (
+          filtered.map((session) => (
+            <Card key={session.id} interactive>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-body font-semibold">{session.title}</h3>
+                    <Badge variant="success">Concluída</Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-body-xs text-gray-500 mb-3">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      {session.scheduled_start ? new Date(session.scheduled_start).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    </span>
+                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {formatDuration(session.duration_minutes)}</span>
+                    <span className="flex items-center gap-1"><Bot className="w-3 h-3" /> {session.agent_count ?? 0} agentes</span>
+                  </div>
+                  {(session.tags?.length ?? 0) > 0 && (
+                    <div className="flex gap-1.5">
+                      {(session.tags ?? []).map((t) => <Badge key={t}>{t}</Badge>)}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-4 text-body-xs text-gray-500 mb-3">
-                  <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {session.date}</span>
-                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {session.duration}</span>
-                  <span className="flex items-center gap-1"><Bot className="w-3 h-3" /> {session.agents} agentes</span>
-                  <span className={`flex items-center gap-1 ${sentimentColors[session.sentiment]}`}>
-                    Sentimento: {session.sentiment === 'positive' ? 'Positivo' : session.sentiment === 'negative' ? 'Negativo' : 'Neutro'}
-                  </span>
-                </div>
-                <div className="flex gap-1.5">
-                  {session.topics.map((t) => <Badge key={t}>{t}</Badge>)}
+                <div className="flex items-center gap-2 ml-4">
+                  <Button variant="ghost" size="sm" icon={<Play className="w-4 h-4" />}>Replay</Button>
+                  <Button variant="secondary" size="sm" icon={<FileText className="w-4 h-4" />}>Relatório</Button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 ml-4">
-                <Badge variant="violet">{session.insights} insights</Badge>
-                <Button variant="ghost" size="sm" icon={<Play className="w-4 h-4" />}>Replay</Button>
-                <Button variant="secondary" size="sm" icon={<FileText className="w-4 h-4" />}>Relatório</Button>
-              </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))
+        )}
       </div>
     </div>
   )

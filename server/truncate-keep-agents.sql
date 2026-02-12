@@ -1,49 +1,42 @@
 -- Zera banco de producao mantendo SOMENTE ai_agents (e tabelas relacionadas)
 -- Cria usuario admin e workspace padrao para os agentes
+-- Uso: cat truncate-keep-agents.sql | docker compose exec -T postgres psql -U USER -d DB -f -
 
--- 1. Remover referencias a meetings (agent_memories)
+BEGIN;
+
+-- 1. Remover FK de agent_memories para meetings (evita erro ao truncar meetings)
 UPDATE agent_memories SET source_session_id = NULL WHERE source_session_id IS NOT NULL;
 
--- 2. Deletar dados de reunioes e relacionados
-DELETE FROM action_items;
-DELETE FROM transcripts;
-DELETE FROM meeting_agents;
-DELETE FROM meeting_participants;
-DELETE FROM session_documents;
-DELETE FROM meetings;
+-- 2. TRUNCATE em cascata - meetings cascata para participantes, transcripts, action_items, etc.
+TRUNCATE meetings RESTART IDENTITY CASCADE;
+TRUNCATE deals RESTART IDENTITY CASCADE;
+TRUNCATE contacts RESTART IDENTITY CASCADE;
+TRUNCATE tasks RESTART IDENTITY CASCADE;
+TRUNCATE notes RESTART IDENTITY CASCADE;
+TRUNCATE templates RESTART IDENTITY CASCADE;
+TRUNCATE invitations RESTART IDENTITY CASCADE;
+TRUNCATE webhooks RESTART IDENTITY CASCADE;
+TRUNCATE api_keys RESTART IDENTITY CASCADE;
+TRUNCATE audit_logs RESTART IDENTITY CASCADE;
+TRUNCATE notifications RESTART IDENTITY CASCADE;
+TRUNCATE reports RESTART IDENTITY CASCADE;
+TRUNCATE invoices RESTART IDENTITY CASCADE;
+TRUNCATE usage_tracking RESTART IDENTITY CASCADE;
+TRUNCATE workspace_subscriptions RESTART IDENTITY CASCADE;
+TRUNCATE workspace_members RESTART IDENTITY CASCADE;
+TRUNCATE profile_settings RESTART IDENTITY CASCADE;
+TRUNCATE profiles RESTART IDENTITY CASCADE;
 
--- 3. Deletar outros dados do workspace
-DELETE FROM deal_contacts;
-DELETE FROM deal_stages;
-DELETE FROM deals;
-DELETE FROM notes;
-DELETE FROM task_assignees;
-DELETE FROM tasks;
-DELETE FROM contacts;
-DELETE FROM invitations;
-DELETE FROM api_keys;
-DELETE FROM webhook_deliveries;
-DELETE FROM webhooks;
-DELETE FROM audit_logs;
-DELETE FROM notifications;
-DELETE FROM reports;
-DELETE FROM invoices;
-DELETE FROM usage_tracking;
-DELETE FROM workspace_subscriptions;
-DELETE FROM workspace_members;
-DELETE FROM profile_settings;
-DELETE FROM profiles;
-
--- 4. Guardar workspace_ids usados pelos agentes
+-- 3. Guardar workspace_ids usados pelos agentes
 CREATE TEMP TABLE _agent_workspace_ids AS SELECT DISTINCT workspace_id FROM ai_agents;
 
--- 5. Deletar workspaces que NAO tem agentes
+-- 4. Deletar workspaces que NAO tem agentes
 DELETE FROM workspaces WHERE id NOT IN (SELECT workspace_id FROM _agent_workspace_ids);
 
--- 6. Deletar usuarios que nao sao owners de workspaces restantes
+-- 5. Deletar usuarios que nao sao owners dos workspaces restantes
 DELETE FROM users WHERE id NOT IN (SELECT owner_id FROM workspaces WHERE owner_id IS NOT NULL);
 
--- 7. Se ficou sem usuarios OU sem workspace_members: criar admin e vincular
+-- 6. Se ficou sem usuarios ou sem workspace_members: criar admin e vincular
 -- Senha padrao: password (altere apos login)
 DO $$
 DECLARE
@@ -53,7 +46,7 @@ DECLARE
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM users) THEN
     INSERT INTO users (email, encrypted_password, name, is_super_admin, email_verified_at)
-    VALUES ('admin@salareuniao.com', '$2a$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', true, NOW())
+    VALUES ('admin@salareuniao.local', '$2a$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', true, NOW())
     RETURNING id INTO v_user_id;
     INSERT INTO workspaces (name, slug, owner_id, description, plan)
     VALUES ('Workspace Padrao', 'ws-default', v_user_id, 'Workspace para agentes', 'free')
@@ -68,7 +61,7 @@ BEGIN
   END IF;
 END $$;
 
--- 9. Re-seed subscription_plans (limpa e re-insere)
+-- 7. Re-seed subscription_plans
 TRUNCATE subscription_plans RESTART IDENTITY CASCADE;
 INSERT INTO subscription_plans (name, slug, description, price_monthly, price_yearly, features, limits) VALUES
 ('Free', 'free', 'Para experimentar a plataforma', 0.00, 0.00, '{"highlights": ["3 agentes", "5 sessões/mês", "2 membros", "Sessões de até 30min"]}', '{"max_agents": 3, "max_sessions_per_month": 5, "max_members": 2, "max_session_duration_minutes": 30, "max_knowledge_base_mb": 50, "max_storage_gb": 1, "api_access": false, "sso": false, "custom_branding": false, "priority_support": false}'),
@@ -77,3 +70,5 @@ INSERT INTO subscription_plans (name, slug, description, price_monthly, price_ye
 ('Enterprise', 'enterprise', 'Para grandes organizações', 499.90, 4798.80, '{"highlights": ["Agentes ilimitados", "Sessões ilimitadas", "Membros ilimitados", "Sem limite de duração", "SSO", "Suporte dedicado", "SLA"]}', '{"max_agents": 9999, "max_sessions_per_month": 9999, "max_members": 9999, "max_session_duration_minutes": 480, "max_knowledge_base_mb": 10000, "max_storage_gb": 500, "api_access": true, "sso": true, "custom_branding": true, "priority_support": true}');
 
 DROP TABLE IF EXISTS _agent_workspace_ids;
+
+COMMIT;
