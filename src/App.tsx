@@ -1,9 +1,11 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthLayout } from '@/app/layouts/AuthLayout'
 import { MainLayout } from '@/app/layouts/MainLayout'
 import { MeetingLayout } from '@/app/layouts/MeetingLayout'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { getCurrentUser } from '@/lib/supabase/auth'
+import { getToken } from '@/lib/api/client'
 import { useEffect } from 'react'
 
 // Auth Pages
@@ -42,17 +44,44 @@ import AdminUsersPage from '@/app/routes/admin/users'
 import AdminIntegrationsPage from '@/app/routes/admin/integrations'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  // For now, always allow access (demo mode)
-  // In production, check useAuthStore().isAuthenticated
+  const { isAuthenticated, isLoading } = useAuthStore()
+  const location = useLocation()
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><p className="text-gray-500">Carregando...</p></div>
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />
   return <>{children}</>
 }
 
 export default function App() {
-  const { theme, setTheme } = useAuthStore()
+  const { theme, setTheme, setUser, setWorkspace, setMembership, setLoading } = useAuthStore()
 
   useEffect(() => {
-    // Apply theme on mount
     setTheme(theme)
+  }, [])
+
+  useEffect(() => {
+    async function restoreSession() {
+      const token = getToken()
+      if (!token) {
+        setLoading(false)
+        return
+      }
+      setLoading(true)
+      try {
+        const data = await getCurrentUser()
+        if (data) {
+          setUser(data.user as any)
+          if (data.workspaces?.length) {
+            setWorkspace(data.workspaces[0] as any)
+            setMembership({ role: data.workspaces[0].role } as any)
+          }
+        }
+      } catch {
+        // Token inválido
+      } finally {
+        setLoading(false)
+      }
+    }
+    restoreSession()
   }, [])
 
   return (

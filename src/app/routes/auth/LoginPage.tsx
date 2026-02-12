@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -19,7 +19,11 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
-  const { setUser } = useAuthStore()
+  const { setUser, isAuthenticated } = useAuthStore()
+
+  useEffect(() => {
+    if (isAuthenticated) navigate(ROUTES.DASHBOARD, { replace: true })
+  }, [isAuthenticated, navigate])
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>()
 
@@ -95,6 +99,11 @@ export default function LoginPage() {
           Criar nova conta
         </Link>
       </p>
+      {import.meta.env.PROD && (
+        <p className="text-center text-body-xs text-gray-400 mt-4 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+          Admin: admin@salareuniao.local / password
+        </p>
+      )}
     </div>
   )
 }
