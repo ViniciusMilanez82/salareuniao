@@ -39,6 +39,13 @@ export async function endMeeting(id: string, summary?: string) {
   return apiPost<Meeting>(`/meetings/${id}/end`, { summary })
 }
 
+export async function runMeetingTurn(id: string, provider: 'openai' | 'anthropic' = 'openai') {
+  return apiPost<{ transcript: { sequence_number: number; speaker_name: string; speaker_id: string; content: string } }>(
+    `/meetings/${id}/run-turn`,
+    { provider }
+  )
+}
+
 export async function addAgentToMeeting(meetingId: string, agentId: string) {
   return apiPost(`/meetings/${meetingId}/agents`, { agent_id: agentId })
 }

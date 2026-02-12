@@ -39,6 +39,7 @@ import SettingsPage from '@/app/routes/settings/index'
 
 // Admin
 import AdminUsersPage from '@/app/routes/admin/users'
+import AdminIntegrationsPage from '@/app/routes/admin/integrations'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // For now, always allow access (demo mode)
@@ -101,6 +102,7 @@ export default function App() {
 
           <Route path="/admin" element={<AnalyticsPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/integrations" element={<AdminIntegrationsPage />} />
           <Route path="/admin/audit" element={<AnalyticsPage />} />
           <Route path="/admin/billing" element={<DealsPage />} />
         </Route>

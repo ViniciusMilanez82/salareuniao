@@ -51,7 +51,26 @@ async function migrate() {
     sql = sql.replace(/auth\.jwt\(\)\s*->>\s*'role'/g, "'admin'")
 
     console.log('📝 Executando SQL limpo (sem Supabase/pgvector/RLS)...\n')
-    await client.query(sql)
+    try {
+      await client.query(sql)
+    } catch (e: any) {
+      if (e?.message?.includes('already exists')) {
+        console.log('   (schema já existe, continuando)')
+      } else throw e
+    }
+
+    // Migração 00002 - integration_settings
+    const migration2Path = path.join(process.cwd(), 'supabase', 'migrations', '00002_integration_settings.sql')
+    if (fs.existsSync(migration2Path)) {
+      try {
+        const sql2 = fs.readFileSync(migration2Path, 'utf-8')
+        await client.query(sql2)
+        console.log('✅ Migração 00002 (integration_settings) aplicada')
+      } catch (e2: any) {
+        if (e2?.message?.includes('already exists')) console.log('   (integration_settings já existe)')
+        else throw e2
+      }
+    }
 
     console.log('✅ Migração concluída!\n')
 

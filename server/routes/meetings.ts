@@ -286,6 +286,23 @@ router.post('/:id/transcripts', async (req: AuthRequest, res: Response) => {
   }
 })
 
+// POST /api/meetings/:id/run-turn - Executa um turno do debate (LLM)
+router.post('/:id/run-turn', async (req: AuthRequest, res: Response) => {
+  try {
+    const meetingId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
+    const { runDebateTurn } = await import('../services/orchestrator.js')
+    const meeting = await query('SELECT workspace_id FROM meetings WHERE id = $1', [meetingId])
+    if (meeting.rows.length === 0) return res.status(404).json({ error: 'Reunião não encontrada' })
+    const workspaceId = meeting.rows[0].workspace_id
+    const provider = (req.body.provider as 'openai' | 'anthropic') || 'openai'
+    const result = await runDebateTurn(meetingId, workspaceId, provider)
+    return res.json(result)
+  } catch (err: any) {
+    console.error('Erro run-turn:', err)
+    return res.status(500).json({ error: err.message })
+  }
+})
+
 // DELETE /api/meetings/:id
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {

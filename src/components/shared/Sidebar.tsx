@@ -12,6 +12,7 @@ import {
   Handshake,
   Contact,
   Shield,
+  Key,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
@@ -31,6 +32,7 @@ const mainNav = [
 const adminNav = [
   { to: ROUTES.ADMIN_DASHBOARD, icon: Shield, label: 'Admin' },
   { to: ROUTES.ADMIN_USERS, icon: Users, label: 'Usuários' },
+  { to: ROUTES.ADMIN_INTEGRATIONS, icon: Key, label: 'Integrações' },
 ]
 
 const bottomNav = [

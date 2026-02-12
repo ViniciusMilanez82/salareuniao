@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js'
 import agentRoutes from './routes/agents.js'
 import meetingRoutes from './routes/meetings.js'
 import workspaceRoutes from './routes/workspace.js'
+import integrationRoutes from './routes/integrations.js'
 
 dotenv.config()
 
@@ -59,6 +60,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/agents', agentRoutes)
 app.use('/api/meetings', meetingRoutes)
 app.use('/api/workspaces', workspaceRoutes)
+app.use('/api/integrations', integrationRoutes)
 
 // Servir frontend em produção (dev: server/ -> ../dist; prod: server/dist/ -> ../../dist)
 if (isProd) {
