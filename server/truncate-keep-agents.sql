@@ -49,7 +49,7 @@ DO $$
 DECLARE
   v_user_id UUID;
   v_workspace_id UUID;
-  v_perm TEXT := '{"can_create_sessions": true, "can_create_agents": true, "can_manage_users": true, "can_view_analytics": true, "can_export_data": true, "can_manage_billing": true, "can_manage_integrations": true}';
+  v_perm JSONB := '{"can_create_sessions": true, "can_create_agents": true, "can_manage_users": true, "can_view_analytics": true, "can_export_data": true, "can_manage_billing": true, "can_manage_integrations": true}'::jsonb;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM users) THEN
     INSERT INTO users (email, encrypted_password, name, is_super_admin, email_verified_at)
