@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { fetchAgents } from '@/lib/api/agents'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -11,23 +13,31 @@ import {
   Star, Copy, Trash2, Edit, Filter
 } from 'lucide-react'
 
-const mockAgents = [
-  { id: '1', name: 'Analista Financeiro', role: 'Finanças', description: 'Especialista em análise financeira, valuation e M&A', tags: ['finanças', 'valuation'], usage_count: 34, average_rating: 4.8, is_active: true, avatar_url: null },
-  { id: '2', name: 'Estrategista de Marketing', role: 'Marketing', description: 'Expert em marketing digital, branding e growth', tags: ['marketing', 'digital'], usage_count: 28, average_rating: 4.6, is_active: true, avatar_url: null },
-  { id: '3', name: 'Advogado Cético', role: 'Jurídico', description: 'Análise jurídica crítica, compliance e regulamentação', tags: ['jurídico', 'compliance'], usage_count: 22, average_rating: 4.7, is_active: true, avatar_url: null },
-  { id: '4', name: 'Especialista em Dados', role: 'Data Science', description: 'Machine learning, estatística e visualização de dados', tags: ['dados', 'ML'], usage_count: 19, average_rating: 4.5, is_active: true, avatar_url: null },
-  { id: '5', name: 'Product Manager', role: 'Produto', description: 'Gestão de produto, user research e roadmap', tags: ['produto', 'UX'], usage_count: 15, average_rating: 4.4, is_active: true, avatar_url: null },
-  { id: '6', name: 'Consultor de RH', role: 'Recursos Humanos', description: 'Gestão de pessoas, cultura organizacional e recrutamento', tags: ['RH', 'cultura'], usage_count: 11, average_rating: 4.3, is_active: false, avatar_url: null },
-]
+type AgentRow = { id: string; name: string; role: string; description?: string; tags?: string[]; usage_count?: number; average_rating?: number; is_active?: boolean; avatar_url?: string | null }
 
 export default function AgentsListPage() {
   const [view, setView] = useState<'grid' | 'list'>('grid')
   const [search, setSearch] = useState('')
+  const [agents, setAgents] = useState<AgentRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const { workspace } = useAuthStore()
   const navigate = useNavigate()
 
-  const filtered = mockAgents.filter((a) =>
-    a.name.toLowerCase().includes(search.toLowerCase()) ||
-    a.role.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    if (workspace?.id) {
+      fetchAgents(workspace.id, search || undefined)
+        .then((data) => setAgents(data as AgentRow[]))
+        .catch(() => setAgents([]))
+        .finally(() => setLoading(false))
+    } else {
+      setAgents([])
+      setLoading(false)
+    }
+  }, [workspace?.id, search])
+
+  const filtered = agents.filter((a) =>
+    a.name?.toLowerCase().includes(search.toLowerCase()) ||
+    a.role?.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -36,7 +46,7 @@ export default function AgentsListPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-h2">Agentes</h1>
-          <p className="text-body text-gray-500 mt-1">{mockAgents.length} agentes no workspace</p>
+          <p className="text-body text-gray-500 mt-1">{loading ? 'Carregando...' : `${agents.length} agente(s) no workspace`}</p>
         </div>
         <Button onClick={() => navigate(ROUTES.AGENT_CREATE)} icon={<Plus className="w-4 h-4" />}>
           Novo Agente
@@ -77,8 +87,14 @@ export default function AgentsListPage() {
       {/* Grid View */}
       {view === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((agent) => (
-            <Card key={agent.id} interactive onClick={() => navigate(`/agents/${agent.id}`)}>
+          {loading ? (
+            <div className="col-span-full text-center py-12 text-gray-500">Carregando agentes...</div>
+          ) : filtered.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-gray-500">
+              Nenhum agente encontrado. <button onClick={() => navigate(ROUTES.AGENT_CREATE)} className="text-primary-500 font-medium hover:underline">Criar primeiro agente</button>
+            </div>
+          ) : filtered.map((agent) => (
+            <Card key={agent.id} interactive onClick={() => navigate(`/agents/${agent.id}/edit`)}>
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <Avatar name={agent.name} src={agent.avatar_url} size="lg" status={agent.is_active ? 'online' : 'offline'} />
@@ -92,19 +108,19 @@ export default function AgentsListPage() {
                 </button>
               </div>
               <p className="text-body-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
-                {agent.description}
+                {agent.description || ''}
               </p>
               <div className="flex flex-wrap gap-1.5 mb-3">
-                {agent.tags.map((tag) => (
+                {(agent.tags || []).map((tag) => (
                   <Badge key={tag} variant="info">{tag}</Badge>
                 ))}
               </div>
               <div className="flex items-center justify-between pt-3 border-t text-body-xs text-gray-500">
                 <span className="flex items-center gap-1">
-                  <Bot className="w-3 h-3" /> {agent.usage_count} usos
+                  <Bot className="w-3 h-3" /> {agent.usage_count ?? 0} usos
                 </span>
                 <span className="flex items-center gap-1">
-                  <Star className="w-3 h-3 text-accent-500" /> {agent.average_rating}
+                  <Star className="w-3 h-3 text-accent-500" /> {agent.average_rating ?? '-'}
                 </span>
               </div>
             </Card>
@@ -125,18 +141,24 @@ export default function AgentsListPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((agent) => (
+              {loading ? (
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-500">Carregando agentes...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                  Nenhum agente encontrado. <button onClick={() => navigate(ROUTES.AGENT_CREATE)} className="text-primary-500 font-medium hover:underline">Criar primeiro agente</button>
+                </td></tr>
+              ) : filtered.map((agent) => (
                 <tr
                   key={agent.id}
                   className="border-b last:border-0 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer"
-                  onClick={() => navigate(`/agents/${agent.id}`)}
+                  onClick={() => navigate(`/agents/${agent.id}/edit`)}
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Avatar name={agent.name} size="sm" />
                       <div>
                         <p className="text-body-sm font-medium">{agent.name}</p>
-                        <p className="text-body-xs text-gray-500 truncate max-w-[200px]">{agent.description}</p>
+                        <p className="text-body-xs text-gray-500 truncate max-w-[200px]">{agent.description || ''}</p>
                       </div>
                     </div>
                   </td>
@@ -146,15 +168,15 @@ export default function AgentsListPage() {
                       {agent.is_active ? 'Ativo' : 'Inativo'}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3 text-body-sm">{agent.usage_count}</td>
+                  <td className="px-4 py-3 text-body-sm">{agent.usage_count ?? 0}</td>
                   <td className="px-4 py-3 text-body-sm">
                     <span className="flex items-center gap-1">
-                      <Star className="w-3 h-3 text-accent-500" /> {agent.average_rating}
+                      <Star className="w-3 h-3 text-accent-500" /> {agent.average_rating ?? '-'}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      <button className="btn-icon w-8 h-8" title="Editar"><Edit className="w-4 h-4" /></button>
+                      <button className="btn-icon w-8 h-8" title="Editar" onClick={() => navigate(`/agents/${agent.id}/edit`)}><Edit className="w-4 h-4" /></button>
                       <button className="btn-icon w-8 h-8" title="Duplicar"><Copy className="w-4 h-4" /></button>
                       <button className="btn-icon w-8 h-8 text-red-500" title="Excluir"><Trash2 className="w-4 h-4" /></button>
                     </div>

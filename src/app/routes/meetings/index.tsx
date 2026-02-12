@@ -87,7 +87,7 @@ export default function SessionsListPage() {
           <Card
             key={session.id}
             interactive
-            onClick={() => navigate(`/meetings/${session.id}`)}
+            onClick={() => navigate(`/meetings/${session.id}/room`)}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -136,7 +136,7 @@ export default function SessionsListPage() {
                   )}
                 </div>
                 {session.status === 'in_progress' && (
-                  <Button size="sm" className="ml-2">
+                  <Button size="sm" className="ml-2" onClick={(e) => { e.stopPropagation(); navigate(`/meetings/${session.id}/room`); }}>
                     Entrar <ArrowRight className="w-3 h-3" />
                   </Button>
                 )}

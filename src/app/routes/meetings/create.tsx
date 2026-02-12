@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { createMeeting, startMeeting } from '@/lib/api/meetings'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -29,7 +32,9 @@ const availableAgents = [
 
 export default function MeetingCreatePage() {
   const navigate = useNavigate()
+  const { workspace } = useAuthStore()
   const [step, setStep] = useState(1)
+  const [loading, setLoading] = useState(false)
   const [title, setTitle] = useState('')
   const [topic, setTopic] = useState('')
   const [meetingType, setMeetingType] = useState('debate')
@@ -223,7 +228,34 @@ export default function MeetingCreatePage() {
             Próximo <ArrowRight className="w-4 h-4" />
           </Button>
         ) : (
-          <Button icon={<Play className="w-4 h-4" />}>
+          <Button
+            icon={<Play className="w-4 h-4" />}
+            loading={loading}
+            onClick={async () => {
+              if (!workspace?.id) {
+                toast.error('Selecione um workspace primeiro')
+                return
+              }
+              setLoading(true)
+              try {
+                const meeting = await createMeeting({
+                  workspace_id: workspace.id,
+                  title: title || 'Sessão sem título',
+                  topic: topic || undefined,
+                  meeting_type: meetingType as string,
+                  parameters: params,
+                  agent_ids: [], // IDs de agentes reais (UUID) – vincular quando houver agentes na API
+                })
+                await startMeeting(meeting.id)
+                navigate(`/meetings/${meeting.id}/room`)
+                toast.success('Sessão iniciada!')
+              } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : 'Erro ao iniciar sessão')
+              } finally {
+                setLoading(false)
+              }
+            }}
+          >
             Iniciar Sessão
           </Button>
         )}

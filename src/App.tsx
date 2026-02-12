@@ -18,6 +18,7 @@ import AnalyticsPage from '@/app/routes/dashboard/analytics'
 // Agents
 import AgentsListPage from '@/app/routes/agents/index'
 import AgentCreatePage from '@/app/routes/agents/create'
+import AgentEditPage from '@/app/routes/agents/edit'
 
 // Meetings
 import SessionsListPage from '@/app/routes/meetings/index'
@@ -87,6 +88,7 @@ export default function App() {
 
           <Route path="/agents" element={<AgentsListPage />} />
           <Route path="/agents/create" element={<AgentCreatePage />} />
+          <Route path="/agents/:id/edit" element={<AgentEditPage />} />
 
           <Route path="/sessions/archive" element={<SessionArchivePage />} />
 
