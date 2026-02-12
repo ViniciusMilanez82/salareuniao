@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #2563EB;
+    --color-primary-dark: #1D4ED8;
+    --color-primary-light: #60A5FA;
+    --color-secondary: #10B981;
+    --color-accent: #F59E0B;
+    --color-violet: #8B5CF6;
+  }
+
+  body {
+    @apply bg-surface-light dark:bg-surface-dark text-gray-900 dark:text-gray-100 font-sans;
+  }
+
+  * {
+    @apply border-border-light dark:border-border-dark;
+  }
+
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-600;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply h-12 px-6 py-3 bg-primary-500 text-white rounded-lg font-medium
+           hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200 inline-flex items-center justify-center gap-2;
+  }
+
+  .btn-secondary {
+    @apply h-11 px-5 py-2.5 bg-transparent border-2 border-primary-500 text-primary-500 rounded-lg font-medium
+           hover:bg-primary-500/10 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200 inline-flex items-center justify-center gap-2;
+  }
+
+  .btn-ghost {
+    @apply h-10 px-4 py-2 bg-transparent text-gray-600 dark:text-gray-400 rounded-lg font-medium
+           hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-800
+           focus:outline-none focus:ring-2 focus:ring-primary-400
+           transition-all duration-200 inline-flex items-center justify-center gap-2;
+  }
+
+  .btn-danger {
+    @apply h-12 px-6 py-3 bg-red-500 text-white rounded-lg font-medium
+           hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200 inline-flex items-center justify-center gap-2;
+  }
+
+  .btn-icon {
+    @apply w-10 h-10 rounded-full flex items-center justify-center
+           text-gray-600 dark:text-gray-400
+           hover:bg-gray-100 dark:hover:bg-gray-800
+           focus:outline-none focus:ring-2 focus:ring-primary-400
+           transition-all duration-200;
+  }
+
+  .card {
+    @apply bg-white dark:bg-surface-dark-alt rounded-xl shadow-card p-6
+           border border-border-light dark:border-border-dark;
+  }
+
+  .card-interactive {
+    @apply card hover:shadow-card-hover transition-shadow duration-300 cursor-pointer;
+  }
+
+  .input-field {
+    @apply h-11 w-full px-4 rounded-lg border border-border-light dark:border-border-dark
+           bg-white dark:bg-surface-dark-alt
+           text-gray-900 dark:text-gray-100
+           placeholder:text-gray-400 dark:placeholder:text-gray-500
+           focus:border-primary-500 focus:ring-2 focus:ring-primary-400/50
+           focus:outline-none transition-all duration-200;
+  }
+
+  .label {
+    @apply block text-body-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 mx-2 rounded-lg
+           text-gray-600 dark:text-gray-400 font-medium
+           hover:bg-gray-100 dark:hover:bg-gray-800
+           transition-all duration-200 cursor-pointer;
+  }
+
+  .sidebar-item-active {
+    @apply bg-primary-500 text-white hover:bg-primary-600 dark:hover:bg-primary-600;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-body-xs font-medium;
+  }
+
+  .badge-success { @apply bg-secondary-100 text-secondary-700 dark:bg-secondary-900/30 dark:text-secondary-400; }
+  .badge-warning { @apply bg-accent-100 text-accent-700 dark:bg-accent-900/30 dark:text-accent-400; }
+  .badge-danger  { @apply bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400; }
+  .badge-info    { @apply bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400; }
+  .badge-violet  { @apply bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400; }
+}

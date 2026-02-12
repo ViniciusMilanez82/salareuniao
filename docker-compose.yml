@@ -1,0 +1,72 @@
+# ============================================
+# SALA DE REUNIÃO - Docker Compose
+# PostgreSQL + App (backend + frontend)
+# ============================================
+
+services:
+  # -----------------------------------------------
+  # PostgreSQL
+  # -----------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: salareuniao-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-A39bokKZClHrBqXC}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ex4x8VZVSogaZL0Bpvj7oGNJkFoWbT0K}
+      POSTGRES_DB: ${POSTGRES_DB:-MHL6sIvZvAqZsACp}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-A39bokKZClHrBqXC} -d ${POSTGRES_DB:-MHL6sIvZvAqZsACp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -----------------------------------------------
+  # App (Backend Express + Frontend React)
+  # -----------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: salareuniao-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-A39bokKZClHrBqXC}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ex4x8VZVSogaZL0Bpvj7oGNJkFoWbT0K}
+      POSTGRES_DB: ${POSTGRES_DB:-MHL6sIvZvAqZsACp}
+      JWT_SECRET: ${JWT_SECRET:-sala-reuniao-jwt-mude-isso-em-producao-2026}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    # Porta 3001 só na rede interna (nginx acessa em app:3001)
+
+  # -----------------------------------------------
+  # Nginx (Reverse Proxy + SSL)
+  # -----------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: salareuniao-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/logs:/var/log/nginx
+
+volumes:
+  pgdata:
+    driver: local

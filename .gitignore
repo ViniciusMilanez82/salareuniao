@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.local
+.env.vps
+.env.production
+*.local
+.DS_Store
+nginx/logs
+nginx/ssl/*.pem
+backup_*.sql
