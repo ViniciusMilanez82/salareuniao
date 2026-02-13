@@ -20,7 +20,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
     "@headlessui/react": "^2.2.0",
-    "@supabase/supabase-js": "^2.49.1",
     "bcryptjs": "^3.0.3",
     "chart.js": "^4.4.7",
     "clsx": "^2.1.1",
@@ -45,7 +44,6 @@
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^2.6.0",
-    "ws": "^8.19.0",
     "zod": "^3.24.1",
     "zustand": "^5.0.3"
   },
@@ -58,7 +56,6 @@
     "@types/pg": "^8.16.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
-    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.2.1",

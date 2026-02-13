@@ -251,8 +251,8 @@ export async function runDebateTurn(
       if (retry && retry.trim().length > 0) {
         response = retry
       }
-    } catch {
-      // Se retry falhar, usa a resposta original
+    } catch (err: unknown) {
+      console.warn('Erro ignorado (retry LLM):', err instanceof Error ? err.message : err)
     }
   }
 

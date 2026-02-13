@@ -20,8 +20,8 @@ export default function ForgotPasswordPage() {
     try {
       await resetPassword(data.email)
       setSent(true)
-    } catch (err: any) {
-      setError(err.message || 'Erro ao enviar email')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao enviar email')
     } finally {
       setLoading(false)
     }
@@ -50,6 +50,9 @@ export default function ForgotPasswordPage() {
       <h2 className="text-h3 text-center mb-1">Redefinir senha</h2>
       <p className="text-body-sm text-gray-500 text-center mb-6">
         Insira seu email e enviaremos um link para redefinir sua senha
+      </p>
+      <p className="text-body-sm text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg mb-4">
+        Funcionalidade em desenvolvimento. Entre em contato com o administrador para redefinir sua senha.
       </p>
 
       {error && (

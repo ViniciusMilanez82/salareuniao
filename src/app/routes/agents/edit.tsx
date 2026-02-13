@@ -87,7 +87,8 @@ export default function AgentEditPage() {
     try {
       const items = await fetchAgentKnowledge(id)
       setKnowledgeItems(items as KnowledgeItem[])
-    } catch {
+    } catch (err: unknown) {
+      console.warn('Erro:', err instanceof Error ? err.message : err)
       setKnowledgeItems([])
     } finally {
       setLoadingKnowledge(false)
@@ -170,7 +171,8 @@ export default function AgentEditPage() {
       })
       toast.success(`Arquivo "${file.name}" importado com sucesso!`)
       loadKnowledge()
-    } catch {
+    } catch (err: unknown) {
+      console.warn('Erro:', err instanceof Error ? err.message : err)
       toast.error('Erro ao importar arquivo')
     } finally {
       setSavingKnowledge(false)

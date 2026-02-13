@@ -41,7 +41,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       }
     })
     return res.json(status)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro ao listar integrações:', err)
     return res.status(500).json({ error: 'Erro interno' })
   }
@@ -78,7 +78,7 @@ router.put('/:provider', async (req: AuthRequest, res: Response) => {
     )
 
     return res.json({ success: true, message: `${PROVIDER_LABELS[provider as string] || provider} configurado` })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro ao salvar integração:', err)
     return res.status(500).json({ error: 'Erro interno' })
   }
@@ -99,7 +99,7 @@ router.delete('/:provider', async (req: AuthRequest, res: Response) => {
       [workspaceId, provider]
     )
     return res.json({ success: true })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro ao remover integração:', err)
     return res.status(500).json({ error: 'Erro interno' })
   }

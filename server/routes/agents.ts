@@ -71,8 +71,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
     const result = await query(sql, params)
     return res.json(result.rows)
-  } catch (err: any) {
-    console.error('Erro ao listar agentes:', err)
+  } catch (err: unknown) {
+    console.error('Erro ao listar agentes:', err instanceof Error ? err.message : err)
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -87,7 +87,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     const allowed = await canAccessWorkspace(agent.workspace_id, req.user.id)
     if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     return res.json(agent)
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -128,8 +128,8 @@ router.post('/', createAgentLimiter, validateRequest(createAgentSchema), async (
     )
 
     return res.status(201).json(result.rows[0])
-  } catch (err: any) {
-    console.error('Erro ao criar agente:', err)
+  } catch (err: unknown) {
+    console.error('Erro ao criar agente:', err instanceof Error ? err.message : err)
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -171,7 +171,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Agente não encontrado' })
     return res.json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -186,7 +186,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     await query('UPDATE ai_agents SET is_active = false WHERE id = $1', [req.params.id])
     return res.json({ message: 'Agente removido' })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -212,7 +212,7 @@ router.post('/:id/duplicate', async (req: AuthRequest, res: Response) => {
     )
 
     return res.status(201).json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -230,7 +230,7 @@ router.get('/:id/knowledge', async (req: AuthRequest, res: Response) => {
       [req.params.id]
     )
     return res.json(result.rows)
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -250,7 +250,7 @@ router.post('/:id/knowledge', async (req: AuthRequest, res: Response) => {
       [req.params.id, title, content, category || null, tags || [], source_type || 'manual']
     )
     return res.status(201).json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })

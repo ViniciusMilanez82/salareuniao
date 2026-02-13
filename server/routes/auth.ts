@@ -106,7 +106,7 @@ router.post('/register', validateRequest(registerSchema), async (req: Request, r
       workspaces: wsData.rows,
       token,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro no registro:', err)
     return res.status(500).json({ error: 'Erro interno do servidor' })
   }
@@ -190,7 +190,7 @@ router.post('/login', validateRequest(loginSchema), async (req: Request, res: Re
       workspaces: workspaces.rows,
       token,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro no login:', err)
     return res.status(500).json({ error: 'Erro interno do servidor' })
   }
@@ -236,7 +236,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
       user: result.rows[0],
       workspaces: workspaces.rows,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro ao buscar perfil:', err)
     return res.status(500).json({ error: 'Erro interno do servidor' })
   }
@@ -263,7 +263,7 @@ router.put('/profile', authMiddleware, async (req: AuthRequest, res: Response) =
       [req.user!.id]
     )
     return res.json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro ao atualizar perfil:', err)
     return res.status(500).json({ error: 'Erro interno do servidor' })
   }
@@ -294,7 +294,7 @@ router.put('/password', authMiddleware, async (req: AuthRequest, res: Response) 
     await query('UPDATE users SET encrypted_password = $1 WHERE id = $2', [hashed, req.user!.id])
 
     return res.json({ message: 'Senha atualizada com sucesso' })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })

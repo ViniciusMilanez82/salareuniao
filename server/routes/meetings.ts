@@ -71,12 +71,17 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       idx++
     }
 
-    sql += ` ORDER BY m.created_at DESC`
+    const page = Math.max(1, parseInt((req.query.page as string) || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt((req.query.limit as string) || '20', 10)))
+    const offset = (page - 1) * limit
+
+    sql += ` ORDER BY m.created_at DESC LIMIT $${idx} OFFSET $${idx + 1}`
+    params.push(limit, offset)
 
     const result = await query(sql, params)
     return res.json(result.rows)
-  } catch (err: any) {
-    console.error('Erro ao listar sessões:', err)
+  } catch (err: unknown) {
+    console.error('Erro ao listar sessões:', err instanceof Error ? err.message : err)
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -111,7 +116,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
       transcripts: transcriptsRes.rows,
       action_items: actionsRes.rows,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -160,7 +165,7 @@ router.post('/', validateRequest(createMeetingSchema), async (req: AuthRequest, 
     }
 
     return res.status(201).json(meeting)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro ao criar sessão:', err)
     return res.status(500).json({ error: 'Erro interno' })
   }
@@ -209,7 +214,7 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
     return res.json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -227,7 +232,7 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
       [req.params.id]
     )
     return res.json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -245,7 +250,7 @@ router.post('/:id/pause', async (req: AuthRequest, res: Response) => {
       [req.params.id]
     )
     return res.json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -263,7 +268,7 @@ router.post('/:id/resume', async (req: AuthRequest, res: Response) => {
       [req.params.id]
     )
     return res.json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -284,7 +289,7 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
     )
     emitToMeeting(meetingId, 'meeting_status', { status: 'completed' })
     return res.json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -304,7 +309,7 @@ router.post('/:id/agents', async (req: AuthRequest, res: Response) => {
       [req.params.id, agent_id, role_in_meeting || 'participant', speaking_order || null]
     )
     return res.status(201).json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -322,7 +327,7 @@ router.delete('/:id/agents/:agentId', async (req: AuthRequest, res: Response) =>
       [req.params.id, req.params.agentId]
     )
     return res.json({ message: 'Agente removido da sessão' })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -340,7 +345,7 @@ router.get('/:id/transcripts', async (req: AuthRequest, res: Response) => {
       [req.params.id]
     )
     return res.json(result.rows)
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -355,6 +360,13 @@ router.post('/:id/transcripts', async (req: AuthRequest, res: Response) => {
     const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
     if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const { speaker_type, speaker_id, speaker_name, content, content_type, sentiment_score, topics } = req.body
+
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      return res.status(400).json({ error: 'Conteúdo da mensagem é obrigatório' })
+    }
+    if (content.length > 5000) {
+      return res.status(400).json({ error: 'Mensagem muito longa (máximo 5000 caracteres)' })
+    }
 
     // Pegar o próximo sequence_number
     const seqRes = await query(
@@ -378,7 +390,7 @@ router.post('/:id/transcripts', async (req: AuthRequest, res: Response) => {
     })
 
     return res.status(201).json(row)
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -397,7 +409,7 @@ router.post('/:id/run-turn', runTurnLimiter, async (req: AuthRequest, res: Respo
     const provider = (req.body.provider as 'openai' | 'anthropic') || 'openai'
     const result = await runDebateTurn(meetingId, workspaceId, provider)
     return res.json(result)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro run-turn:', err)
     return res.status(500).json({ error: 'Erro ao executar turno do debate' })
   }
@@ -423,7 +435,7 @@ router.get('/:id/feedback', async (req: AuthRequest, res: Response) => {
       map[row.transcript_id] = row.rating
     }
     return res.json(map)
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -450,7 +462,7 @@ router.post('/:id/transcripts/:transcriptId/feedback', async (req: AuthRequest, 
       [transcriptId, req.user.id, rating]
     )
     return res.json({ transcript_id: transcriptId, rating })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -465,7 +477,7 @@ router.delete('/:id', async (req: AuthRequest, res: Response) => {
     if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     await query('DELETE FROM meetings WHERE id = $1', [req.params.id])
     return res.json({ message: 'Sessão removida' })
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })

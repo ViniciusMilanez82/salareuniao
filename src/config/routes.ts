@@ -3,8 +3,6 @@ export const ROUTES = {
   LOGIN: '/login',
   REGISTER: '/register',
   FORGOT_PASSWORD: '/forgot-password',
-  RESET_PASSWORD: '/reset-password',
-  VERIFY_2FA: '/verify-2fa',
 
   // Dashboard
   DASHBOARD: '/dashboard',
@@ -20,7 +18,6 @@ export const ROUTES = {
   AGENTS: '/agents',
   AGENT_CREATE: '/agents/create',
   AGENT_DETAIL: (id: string) => `/agents/${id}`,
-  AGENT_STUDIO: (id: string) => `/agents/${id}/studio`,
 
   // Settings
   SETTINGS: '/settings',
@@ -33,6 +30,4 @@ export const ROUTES = {
   ADMIN_DASHBOARD: '/admin',
   ADMIN_USERS: '/admin/users',
   ADMIN_INTEGRATIONS: '/admin/integrations',
-  ADMIN_AUDIT: '/admin/audit',
-  ADMIN_BILLING: '/admin/billing',
 } as const

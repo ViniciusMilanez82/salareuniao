@@ -43,7 +43,8 @@ export function decrypt(cipherText: string): string {
     const decipher = crypto.createDecipheriv(ALGO, key, iv, { authTagLength: AUTH_TAG_LEN })
     decipher.setAuthTag(authTag)
     return decipher.update(encrypted) + decipher.final('utf8')
-  } catch {
+  } catch (err: unknown) {
+    console.warn('Erro ignorado (decrypt):', err instanceof Error ? err.message : err)
     return cipherText
   }
 }

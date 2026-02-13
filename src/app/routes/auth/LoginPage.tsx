@@ -36,8 +36,8 @@ export default function LoginPage() {
         setMembership({ role: result.workspaces[0].role } as any)
       }
       navigate(ROUTES.DASHBOARD)
-    } catch (err: any) {
-      setError(err.message || 'Erro ao fazer login')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao fazer login')
     } finally {
       setLoading(false)
     }

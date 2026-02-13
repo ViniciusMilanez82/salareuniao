@@ -290,7 +290,8 @@ export default function MeetingRoomPage() {
       setChatMessage('')
       await refreshTranscripts()
       scrollToBottom()
-    } catch {
+    } catch (err: unknown) {
+      console.warn('Erro ao enviar mensagem:', err instanceof Error ? err.message : err)
       toast.error('Erro ao enviar mensagem')
     } finally {
       setSendingChat(false)
@@ -411,8 +412,8 @@ export default function MeetingRoomPage() {
         onReconnect: () => setSocketReconnecting(false),
       })
       setSocketReconnecting(false)
-    } catch {
-      console.log('WebSocket não disponível, usando polling')
+    } catch (err: unknown) {
+      console.warn('WebSocket não disponível:', err instanceof Error ? err.message : err)
     }
 
     return () => {
@@ -448,7 +449,8 @@ export default function MeetingRoomPage() {
       const last = newTranscripts.slice(-1)[0]
       if (last) setLastSpeaker(last.speaker_name)
       return newTranscripts
-    } catch {
+    } catch (err: unknown) {
+      console.warn('Erro ao atualizar transcrições:', err instanceof Error ? err.message : err)
       return []
     }
   }
@@ -462,8 +464,8 @@ export default function MeetingRoomPage() {
       await refreshTranscripts()
       setTurnsExecuted((prev) => prev + 1)
       return true
-    } catch (err: any) {
-      const msg = err?.message || ''
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : ''
       if (msg.includes('API key') || msg.includes('não configurada')) {
         toast.error('API da OpenAI não configurada. Vá em Admin > Integrações para configurar.')
       } else if (msg.includes('429') || msg.includes('Muitas requisições')) {
@@ -564,7 +566,8 @@ export default function MeetingRoomPage() {
       await endMeeting(id)
       toast.success('Sessão encerrada com sucesso!')
       navigate(ROUTES.MEETINGS)
-    } catch {
+    } catch (err: unknown) {
+      console.warn('Erro ao encerrar sessão:', err instanceof Error ? err.message : err)
       toast.error('Erro ao encerrar')
     }
   }

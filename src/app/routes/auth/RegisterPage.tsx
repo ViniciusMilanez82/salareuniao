@@ -48,8 +48,8 @@ export default function RegisterPage() {
         setMembership({ role: result.workspaces[0].role } as any)
       }
       navigate(ROUTES.DASHBOARD)
-    } catch (err: any) {
-      setError(err.message || 'Erro ao criar conta')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Erro ao criar conta')
     } finally {
       setLoading(false)
     }

@@ -42,7 +42,7 @@ export default function AdminIntegrationsPage() {
       setEditing((e) => ({ ...e, [provider]: '' }))
       const list = await fetchIntegrations(workspace.id)
       setIntegrations(list)
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err?.message || 'Erro ao salvar')
     } finally {
       setSaving(null)
@@ -58,7 +58,7 @@ export default function AdminIntegrationsPage() {
       toast.success('Integração removida')
       const list = await fetchIntegrations(workspace.id)
       setIntegrations(list)
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error('Erro ao remover')
     } finally {
       setSaving(null)

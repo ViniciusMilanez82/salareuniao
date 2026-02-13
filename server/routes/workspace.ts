@@ -20,7 +20,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       [req.user!.id]
     )
     return res.json(result.rows)
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -42,7 +42,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
     )
     if (result.rows.length === 0) return res.status(404).json({ error: 'Workspace não encontrado' })
     return res.json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -63,7 +63,7 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
       [wsId]
     )
     return res.json(result.rows)
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -88,7 +88,7 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
     )
 
     return res.status(201).json(result.rows[0])
-  } catch (err: any) {
+  } catch (err: unknown) {
     return res.status(500).json({ error: 'Erro interno' })
   }
 })
@@ -137,7 +137,7 @@ router.get('/:id/dashboard', async (req: AuthRequest, res: Response) => {
       top_agents: topAgentsRes.rows,
       recent_activity: recentActivityRes.rows,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Erro no dashboard:', err)
     return res.status(500).json({ error: 'Erro interno' })
   }

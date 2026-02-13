@@ -130,7 +130,8 @@ export function requireRole(...roles: string[]) {
       }
 
       next()
-    } catch {
+    } catch (err: unknown) {
+      console.warn('Erro ao verificar permissões:', err instanceof Error ? err.message : err)
       return res.status(500).json({ error: 'Erro ao verificar permissões' })
     }
   }

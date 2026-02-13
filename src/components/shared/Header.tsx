@@ -97,7 +97,8 @@ export function Header() {
         }))
 
       setSearchResults(results)
-    } catch {
+    } catch (err: unknown) {
+      console.warn('Erro na busca:', err instanceof Error ? err.message : err)
       setSearchResults([])
     } finally {
       setSearching(false)
@@ -123,13 +124,9 @@ export function Header() {
     agent: <Bot className="w-4 h-4 text-violet-500" />,
   }
 
-  // Notificações mockadas (prontas para integrar com backend)
-  const notifications = [
-    { id: '1', title: 'Sessão concluída', message: 'O debate "Análise de Mercado" foi encerrado.', time: '5 min', read: false },
-    { id: '2', title: 'Novo agente criado', message: 'O agente "Analista Financeiro" está pronto.', time: '1h', read: true },
-    { id: '3', title: 'Bem-vindo!', message: 'Configure suas integrações para começar a usar IA.', time: '1d', read: true },
-  ]
-  const unreadCount = notifications.filter(n => !n.read).length
+  // Notificações: funcionalidade planejada para v2.1
+  const notifications: { id: string; title: string; message: string; time: string; read: boolean }[] = []
+  const unreadCount = 0
 
   return (
     <header className="h-16 bg-white dark:bg-surface-dark-alt border-b px-6 flex items-center justify-between sticky top-0 z-30">

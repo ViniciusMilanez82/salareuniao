@@ -38,8 +38,8 @@ export async function query(text: string, params?: unknown[]) {
   try {
     const result = await pool.query(text, params)
     return result
-  } catch (err: any) {
-    console.error('❌ Query error:', err.message, '| SQL:', text.substring(0, 80))
+  } catch (err: unknown) {
+    console.error('❌ Query error:', err instanceof Error ? err.message : err, '| SQL:', text.substring(0, 80))
     throw err
   }
 }
@@ -54,8 +54,8 @@ export async function testConnection() {
     const result = await pool.query('SELECT NOW() as now')
     console.log('✅ PostgreSQL conectado:', result.rows[0].now)
     return true
-  } catch (err: any) {
-    console.error('❌ Falha ao conectar:', err.message)
+  } catch (err: unknown) {
+    console.error('❌ Falha ao conectar:', err instanceof Error ? err.message : err)
     return false
   }
 }

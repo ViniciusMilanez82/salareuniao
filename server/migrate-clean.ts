@@ -147,22 +147,23 @@ async function migrate() {
 
     console.log('\n🎉 Banco de dados pronto para uso!')
 
-  } catch (err: any) {
-    const msg = err?.message ?? err?.code ?? String(err)
+  } catch (err: unknown) {
+    const errObj = err as { message?: string; code?: string; position?: string; detail?: string }
+    const msg = errObj?.message ?? errObj?.code ?? String(err)
     console.error('\n❌ Erro na migração:', msg || '(sem mensagem)')
-    if (err?.code) console.error('   Código:', err.code)
-    if (err?.position) {
-      console.error('   Posição no SQL:', err.position)
+    if (errObj?.code) console.error('   Código:', errObj.code)
+    if (errObj?.position) {
+      console.error('   Posição no SQL:', errObj.position)
       try {
         const migrationPath = path.join(process.cwd(), 'supabase', 'migrations', '00001_initial_schema.sql')
         const sql = fs.readFileSync(migrationPath, 'utf-8')
-        const pos = parseInt(err.position, 10)
+        const pos = parseInt(errObj.position, 10)
         const start = Math.max(0, pos - 100)
         const end = Math.min(sql.length, pos + 100)
         console.error('   Trecho:', sql.substring(start, end).replace(/\n/g, ' ').trim())
       } catch (_) {}
     }
-    if (err?.detail) console.error('   Detalhe:', err.detail)
+    if (errObj?.detail) console.error('   Detalhe:', errObj.detail)
     process.exit(1)
   } finally {
     try {
