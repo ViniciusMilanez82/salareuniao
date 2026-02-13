@@ -9,6 +9,7 @@ import { query } from '../db.js'
 import { generateAgentResponse } from './llm.js'
 import { webSearch } from './search.js'
 import { getAgentMemories, saveAgentMemory } from './agent-memory.js'
+import { emitToMeeting } from '../socket.js'
 
 const MAX_CONTEXT_TRANSCRIPTS = 12
 const MAX_CHARS_PER_TRANSCRIPT = 300
@@ -30,6 +31,8 @@ type AgentRow = {
   system_prompt: string
   model_settings: any
   speaking_order: number
+  personality_traits?: Record<string, unknown> | null
+  behavior_settings?: Record<string, unknown> | null
 }
 
 /** Verifica se o agente é o Facilitador/Condutor */
@@ -114,11 +117,12 @@ export async function runDebateTurn(
     ? meeting.objectives.join('; ')
     : (typeof meeting.objectives === 'string' ? meeting.objectives : '')
 
-  // 2. Buscar agentes
+  // 2. Buscar agentes (inclui personalidade e comportamento para PRD 4.3.1)
   const agentsRes = await query(
     `SELECT ma.agent_id, ma.speaking_order,
             a.name AS agent_name, a.role AS agent_role,
-            a.system_prompt, a.model_settings
+            a.system_prompt, a.model_settings,
+            a.personality_traits, a.behavior_settings
      FROM meeting_agents ma
      JOIN ai_agents a ON a.id = ma.agent_id
      WHERE ma.meeting_id = $1 ORDER BY ma.speaking_order`,
@@ -183,6 +187,8 @@ export async function runDebateTurn(
     role: nextAgent.agent_role,
     system_prompt: sysPrompt,
     model_settings: nextAgent.model_settings,
+    personality_traits: nextAgent.personality_traits ?? undefined,
+    behavior_settings: nextAgent.behavior_settings ?? undefined,
   }
 
   const context = {
@@ -257,10 +263,19 @@ export async function runDebateTurn(
   const insertRes = await query(
     `INSERT INTO transcripts (meeting_id, sequence_number, speaker_type, speaker_id, speaker_name, content, content_type, timestamp_start)
      VALUES ($1, (SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM transcripts WHERE meeting_id = $1), 'ai_agent', $2, $3, $4, 'speech', NOW())
-     RETURNING sequence_number`,
+     RETURNING id, sequence_number, speaker_name, speaker_id, content`,
     [meetingId, nextAgent.agent_id, nextAgent.agent_name, response]
   )
-  const nextSeq = insertRes.rows[0].sequence_number
+  const row = insertRes.rows[0]
+  const nextSeq = row.sequence_number
+  const transcriptPayload = {
+    id: row.id,
+    sequence_number: nextSeq,
+    speaker_name: nextAgent.agent_name,
+    speaker_id: nextAgent.agent_id,
+    content: response,
+  }
+  emitToMeeting(meetingId, 'transcript', transcriptPayload)
 
   // 10. Salvar memória
   const memoryContent = [

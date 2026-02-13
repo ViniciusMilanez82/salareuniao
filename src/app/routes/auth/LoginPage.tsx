@@ -99,11 +99,6 @@ export default function LoginPage() {
           Criar nova conta
         </Link>
       </p>
-      {import.meta.env.DEV && (
-        <p className="text-center text-body-xs text-gray-400 mt-4 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-          Dev: admin@salareuniao.local / password
-        </p>
-      )}
     </div>
   )
 }

@@ -1,9 +1,12 @@
+import http from 'http'
 import express from 'express'
+import { Server as SocketIOServer } from 'socket.io'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
+import { setIO } from './socket.js'
 
 dotenv.config()
 
@@ -103,10 +106,30 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: 'Erro interno do servidor' })
 })
 
+// HTTP server (para anexar Socket.IO)
+const server = http.createServer(app)
+
+// Socket.IO — tempo real por sala de reunião (PRD RF-WS-001, RF-WS-002)
+const io = new SocketIOServer(server, {
+  path: '/socket.io',
+  cors: {
+    origin: isProd ? (process.env.CORS_ORIGIN || '*') : ['http://localhost:5173', 'http://localhost:3000'],
+    credentials: true,
+  },
+})
+io.on('connection', (socket) => {
+  const room = socket.handshake.query.room as string
+  if (room) {
+    socket.join('meeting:' + room)
+  }
+})
+setIO(io)
+
 // Start
-app.listen(PORT, '0.0.0.0', async () => {
+server.listen(PORT, '0.0.0.0', async () => {
   console.log(`\n🚀 Servidor rodando em http://0.0.0.0:${PORT}`)
   console.log(`📡 API disponível em http://0.0.0.0:${PORT}/api`)
+  console.log(`🔌 Socket.IO em /socket.io`)
   console.log(`🌍 Modo: ${isProd ? 'PRODUÇÃO' : 'DESENVOLVIMENTO'}`)
   await testConnection()
   console.log('')

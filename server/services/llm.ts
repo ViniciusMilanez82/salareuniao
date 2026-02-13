@@ -143,8 +143,39 @@ const PRODUCTIVITY_ADDENDUM = `
 5) CADA FALA deve conter pelo menos 1: opção concreta, número/estimativa, trade-off, risco+mitigação, decisão, ou experimento com métrica.
 `
 
+function formatPersona(agent: {
+  name: string
+  role: string
+  system_prompt?: string
+  personality_traits?: Record<string, unknown> | null
+  behavior_settings?: Record<string, unknown> | null
+ }): string {
+  const parts = [`Você é ${agent.name}, um especialista em ${agent.role}.`]
+  if (agent.personality_traits && Object.keys(agent.personality_traits).length > 0) {
+    const traits = Object.entries(agent.personality_traits)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ')
+    parts.push(`Seus traços de personalidade: ${traits}.`)
+  }
+  if (agent.behavior_settings && Object.keys(agent.behavior_settings).length > 0) {
+    const rules = typeof agent.behavior_settings === 'object' && !Array.isArray(agent.behavior_settings)
+      ? Object.entries(agent.behavior_settings).map(([k, v]) => `- ${k}: ${JSON.stringify(v)}`).join('\n')
+      : String(agent.behavior_settings)
+    parts.push(`Suas regras de comportamento:\n${rules}`)
+  }
+  if (agent.system_prompt) parts.push(agent.system_prompt)
+  return parts.join('\n\n')
+}
+
 export async function generateAgentResponse(
-  agent: { system_prompt: string; role: string; name: string; model_settings?: { model?: string; temperature?: number } },
+  agent: {
+    system_prompt: string
+    role: string
+    name: string
+    model_settings?: { model?: string; temperature?: number }
+    personality_traits?: Record<string, unknown> | null
+    behavior_settings?: Record<string, unknown> | null
+  },
   context: {
     meetingTopic: string
     transcriptHistory: string
@@ -166,9 +197,8 @@ export async function generateAgentResponse(
     // 1. Meeting system prompt (template + objectives)
     getMeetingSystemPrompt(meetingType, context.objectives),
     '',
-    // 2. Agent identity
-    `Você é ${agent.name}, com expertise em ${agent.role}.`,
-    agent.system_prompt || '',
+    // 2. Persona (PRD 4.3.1: personality_traits + behavior_settings)
+    formatPersona(agent),
     '',
     // 3. Conhecimento e memórias
     context.knowledge ? `Seu conhecimento especializado:\n${context.knowledge}\n` : '',
