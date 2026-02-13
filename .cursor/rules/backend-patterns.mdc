@@ -1,0 +1,40 @@
+---
+description: Padrões do backend Express - rotas, middleware, banco de dados
+globs: server/**/*.ts
+alwaysApply: false
+---
+
+# Backend — Padrões e Regras
+
+## Rotas
+- Toda rota usa `authMiddleware` (exceto `/api/auth/login` e `/api/auth/register`)
+- Usar `validateUuidParam` para params de ID: `router.param('id', validateUuidParam)`
+- Sempre verificar `canAccessWorkspace(workspaceId, req.user.id)` antes de acessar dados
+- Query params: `workspace_id` é obrigatório em listagens
+- Retornar 201 para criação, 200 para leitura/atualização, 404 para não encontrado
+
+## Banco de Dados
+- Usar `query(sql, params)` de `../db.js` — NUNCA concatenar SQL direto
+- JSON fields: usar `JSON.stringify()` ao inserir e `JSON.parse()` ao ler (Postgres JSONB)
+- Soft delete em `ai_agents`: `UPDATE SET is_active = false` (nunca DELETE)
+- Hard delete em `contacts`, `deals`, `meetings`
+
+## Orchestrator (Debate)
+- `runDebateTurn()` em `services/orchestrator.ts` executa um turno
+- Round-robin: seleciona agente com menos falas
+- Contexto LLM: topic + histórico de transcrições + memórias do agente
+- Se resposta contém `[pesquisar:query]`, executa busca web (Serper)
+- Salva transcript + memória após cada turno
+
+## LLM
+- API keys buscadas em `integration_settings` (workspace-specific ou global)
+- Fallback para env vars `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`
+- Default model: `gpt-4o-mini` (OpenAI), `claude-3-5-haiku-20241022` (Anthropic)
+- Chaves são criptografadas com AES-256-GCM se `ENCRYPTION_KEY` estiver definida
+
+## Imports
+- Usar extensão `.js` nos imports entre arquivos do server (ESM):
+  ```typescript
+  import { query } from '../db.js'
+  import { authMiddleware } from '../middleware/auth.js'
+  ```

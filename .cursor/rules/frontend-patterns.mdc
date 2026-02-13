@@ -1,0 +1,66 @@
+---
+description: Padrões do frontend React - componentes, estado, API calls, UX
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# Frontend — Padrões e Regras
+
+## Componentes de UI (usar estes, NÃO criar novos)
+- `Button` — variant: primary/secondary/ghost/danger, size: sm/md/lg, loading, icon
+- `Card` — CardTitle, CardContent, interactive, noPadding
+- `Input` — label, error, todos os props de input HTML
+- `Badge` — variant: success/warning/info/danger/violet/default
+- `Avatar` — name, src, size: xs/sm/md/lg/xl, status: online/offline
+
+## Estado
+- Auth global: `useAuthStore` (Zustand, persist theme only)
+- Acessar workspace: `const { workspace } = useAuthStore()`
+- Acessar user: `const { user } = useAuthStore()`
+
+## API Calls
+- Sempre usar funções de `@/lib/api/` (meetings.ts, agents.ts, contacts.ts, deals.ts)
+- Padrão de loading:
+  ```tsx
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    fetchData(workspace.id).then(setData).catch(() => setData([])).finally(() => setLoading(false))
+  }, [workspace?.id])
+  ```
+- Erros: `toast.error(err instanceof Error ? err.message : 'Erro genérico')`
+
+## Formulários
+- Usar modal overlay para criação/edição (não página separada para CRUD simples)
+- Padrão de modal:
+  ```tsx
+  {showForm && (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
+      <Card className="w-full max-w-lg">...</Card>
+    </div>
+  )}
+  ```
+- Validação: checar campos obrigatórios antes de enviar, mostrar toast de erro
+
+## Rotas / Navegação
+- Importar de `@/config/routes` — `ROUTES.DASHBOARD`, `ROUTES.MEETINGS`, etc.
+- Usar `useNavigate()` para navegação programática
+- Nunca hardcodar paths — usar `ROUTES` constants
+
+## Meeting Room — Auto-debate
+- Botão "Auto-debate" inicia loop automático de turnos
+- Intervalo configurável (1-15s) + limite de turnos (5-100)
+- Usa `useRef` para controlar o loop assíncrono (autoPlayRef.current)
+- Fallback: botão "1 turno" para controle manual
+- WebSocket conecta automaticamente, com fallback para polling
+
+## CSS Classes do Projeto
+- `btn-icon` — botão circular de ícone
+- `btn-primary`, `btn-secondary`, `btn-ghost`, `btn-danger` — botões estilizados
+- `input-field` — input/textarea/select
+- `label` — label de campo de formulário
+- `sidebar-item`, `sidebar-item-active` — items da sidebar
+- `text-h2`, `text-h3`, `text-h4` — headings
+- `text-body`, `text-body-sm`, `text-body-xs`, `text-body-lg` — texto
+- `animate-fade-in` — animação de entrada
+- `bg-surface-dark`, `bg-surface-dark-alt`, `bg-surface-light` — backgrounds
+- `border-border-dark` — bordas no tema escuro

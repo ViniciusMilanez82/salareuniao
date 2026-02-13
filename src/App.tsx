@@ -51,6 +51,27 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { membership } = useAuthStore()
+  const isAdmin = membership?.role === 'workspace_admin'
+  if (!isAdmin) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-h3 font-semibold text-gray-700 dark:text-gray-300">Acesso Restrito</p>
+          <p className="text-body-sm text-gray-500 mt-2">
+            Apenas administradores do workspace podem acessar esta página.
+          </p>
+          <a href="/dashboard" className="text-primary-500 text-body-sm font-medium hover:underline mt-4 inline-block">
+            Voltar ao Painel
+          </a>
+        </div>
+      </div>
+    )
+  }
+  return <>{children}</>
+}
+
 export default function App() {
   const { theme, setTheme, setUser, setWorkspace, setMembership, setLoading } = useAuthStore()
 
@@ -129,11 +150,10 @@ export default function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/*" element={<SettingsPage />} />
 
-          <Route path="/admin" element={<AnalyticsPage />} />
-          <Route path="/admin/users" element={<AdminUsersPage />} />
-          <Route path="/admin/integrations" element={<AdminIntegrationsPage />} />
-          <Route path="/admin/audit" element={<AnalyticsPage />} />
-          <Route path="/admin/billing" element={<DealsPage />} />
+          {/* Admin Routes — protegidas por AdminRoute */}
+          <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
+          <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+          <Route path="/admin/integrations" element={<AdminRoute><AdminIntegrationsPage /></AdminRoute>} />
         </Route>
 
         {/* Default redirect */}

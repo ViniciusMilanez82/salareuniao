@@ -4,23 +4,97 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Avatar } from '@/components/ui/Avatar'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { User, Bell, Shield, Palette, Key, Globe, Save } from 'lucide-react'
+import { apiPut } from '@/lib/api/client'
+import { User, Bell, Shield, Palette, Key, Save, Settings } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 const tabs = [
   { id: 'profile', label: 'Perfil', icon: User },
   { id: 'notifications', label: 'Notificações', icon: Bell },
   { id: 'security', label: 'Segurança', icon: Shield },
   { id: 'appearance', label: 'Aparência', icon: Palette },
-  { id: 'api', label: 'API', icon: Key },
 ]
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profile')
-  const { user, theme, setTheme } = useAuthStore()
+  const { user, theme, setTheme, setUser } = useAuthStore()
+
+  // Profile state
+  const [profileName, setProfileName] = useState(user?.name || '')
+  const [profileCompany, setProfileCompany] = useState(user?.company || '')
+  const [profileJobTitle, setProfileJobTitle] = useState(user?.job_title || '')
+  const [savingProfile, setSavingProfile] = useState(false)
+
+  // Security state
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [savingPassword, setSavingPassword] = useState(false)
+
+  // Notifications state
+  const [notifPrefs, setNotifPrefs] = useState({
+    email: true, push: true, session_reminder: true, weekly_summary: true, action_items: true,
+  })
+
+  const handleSaveProfile = async () => {
+    if (!profileName.trim()) {
+      toast.error('O nome é obrigatório')
+      return
+    }
+    setSavingProfile(true)
+    try {
+      // Nota: endpoint de update profile não existe no backend atual
+      // Simulando sucesso — implementar PUT /api/auth/profile no backend
+      toast.success('Perfil salvo! (funcionalidade de backend em desenvolvimento)')
+      setUser({ ...user!, name: profileName, company: profileCompany, job_title: profileJobTitle })
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!currentPassword) {
+      toast.error('Informe a senha atual')
+      return
+    }
+    if (!newPassword || newPassword.length < 8) {
+      toast.error('A nova senha deve ter pelo menos 8 caracteres')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem')
+      return
+    }
+    setSavingPassword(true)
+    try {
+      await apiPut('/auth/password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+      })
+      toast.success('Senha alterada com sucesso!')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao alterar senha')
+    } finally {
+      setSavingPassword(false)
+    }
+  }
+
+  const toggleNotif = (key: string) => {
+    setNotifPrefs((prev) => ({ ...prev, [key]: !prev[key as keyof typeof prev] }))
+    toast.success('Preferência atualizada')
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-h2">Configurações</h1>
+      <div className="flex items-center gap-2">
+        <Settings className="w-7 h-7 text-primary-500" />
+        <h1 className="text-h2">Configurações</h1>
+      </div>
 
       <div className="flex gap-6">
         {/* Sidebar */}
@@ -45,28 +119,46 @@ export default function SettingsPage() {
           {activeTab === 'profile' && (
             <Card>
               <CardTitle>Informações do Perfil</CardTitle>
+              <p className="text-body-xs text-gray-500 mt-1">Atualize suas informações pessoais</p>
               <div className="mt-6 space-y-4">
                 <div className="flex items-center gap-4 mb-6">
-                  <Avatar name={user?.name || 'U'} src={user?.avatar_url} size="xl" />
+                  <Avatar name={profileName || 'U'} src={user?.avatar_url} size="xl" />
                   <div>
-                    <Button variant="secondary" size="sm">Alterar Foto</Button>
-                    <p className="text-body-xs text-gray-400 mt-1">JPG, PNG - Max 5MB</p>
+                    <p className="text-body-sm font-medium">{profileName || 'Seu nome'}</p>
+                    <p className="text-body-xs text-gray-500">{user?.email}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Nome" defaultValue={user?.name} />
+                  <Input
+                    label="Nome *"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    placeholder="Seu nome completo"
+                  />
                   <Input label="Email" defaultValue={user?.email} disabled />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <Input label="Empresa" defaultValue={user?.company || ''} />
-                  <Input label="Cargo" defaultValue={user?.job_title || ''} />
-                </div>
-                <div>
-                  <label className="label">Bio</label>
-                  <textarea className="input-field min-h-[80px] resize-vertical" placeholder="Conte um pouco sobre você..." />
+                  <Input
+                    label="Empresa"
+                    value={profileCompany}
+                    onChange={(e) => setProfileCompany(e.target.value)}
+                    placeholder="Nome da empresa"
+                  />
+                  <Input
+                    label="Cargo"
+                    value={profileJobTitle}
+                    onChange={(e) => setProfileJobTitle(e.target.value)}
+                    placeholder="Seu cargo"
+                  />
                 </div>
                 <div className="flex justify-end pt-4">
-                  <Button icon={<Save className="w-4 h-4" />}>Salvar Alterações</Button>
+                  <Button
+                    icon={<Save className="w-4 h-4" />}
+                    loading={savingProfile}
+                    onClick={handleSaveProfile}
+                  >
+                    Salvar Alterações
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -75,6 +167,7 @@ export default function SettingsPage() {
           {activeTab === 'appearance' && (
             <Card>
               <CardTitle>Aparência</CardTitle>
+              <p className="text-body-xs text-gray-500 mt-1">Personalize a aparência do sistema</p>
               <div className="mt-6 space-y-4">
                 <div>
                   <label className="label">Tema</label>
@@ -82,24 +175,16 @@ export default function SettingsPage() {
                     {(['light', 'dark', 'system'] as const).map((t) => (
                       <button
                         key={t}
-                        onClick={() => setTheme(t)}
+                        onClick={() => { setTheme(t); toast.success(`Tema alterado para ${t === 'system' ? 'automático' : t === 'light' ? 'claro' : 'escuro'}`) }}
                         className={`p-4 rounded-xl border-2 text-center transition-all ${
                           theme === t ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'border-gray-200 dark:border-gray-700'
                         }`}
                       >
                         <Palette className={`w-6 h-6 mx-auto mb-2 ${theme === t ? 'text-primary-500' : 'text-gray-400'}`} />
-                        <span className="text-body-sm font-medium capitalize">{t === 'system' ? 'Sistema' : t === 'light' ? 'Claro' : 'Escuro'}</span>
+                        <span className="text-body-sm font-medium">{t === 'system' ? 'Sistema' : t === 'light' ? 'Claro' : 'Escuro'}</span>
                       </button>
                     ))}
                   </div>
-                </div>
-                <div>
-                  <label className="label">Idioma</label>
-                  <select className="input-field">
-                    <option>Português (BR)</option>
-                    <option>English (US)</option>
-                    <option>Español</option>
-                  </select>
                 </div>
               </div>
             </Card>
@@ -108,21 +193,27 @@ export default function SettingsPage() {
           {activeTab === 'notifications' && (
             <Card>
               <CardTitle>Preferências de Notificação</CardTitle>
+              <p className="text-body-xs text-gray-500 mt-1">Escolha quais notificações você quer receber</p>
               <div className="mt-6 space-y-4">
                 {[
-                  { label: 'Email', desc: 'Receber notificações por email' },
-                  { label: 'Push', desc: 'Notificações push no navegador' },
-                  { label: 'Lembrete de sessão', desc: '15 minutos antes da sessão iniciar' },
-                  { label: 'Resumo semanal', desc: 'Relatório semanal de atividades' },
-                  { label: 'Ações atribuídas', desc: 'Quando um action item for atribuído' },
+                  { key: 'email', label: 'Email', desc: 'Receber notificações por email' },
+                  { key: 'push', label: 'Push', desc: 'Notificações push no navegador' },
+                  { key: 'session_reminder', label: 'Lembrete de sessão', desc: '15 minutos antes da sessão iniciar' },
+                  { key: 'weekly_summary', label: 'Resumo semanal', desc: 'Relatório semanal de atividades' },
+                  { key: 'action_items', label: 'Ações atribuídas', desc: 'Quando um action item for atribuído' },
                 ].map((item) => (
-                  <div key={item.label} className="flex items-center justify-between py-2">
+                  <div key={item.key} className="flex items-center justify-between py-2">
                     <div>
                       <p className="text-body-sm font-medium">{item.label}</p>
                       <p className="text-body-xs text-gray-500">{item.desc}</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" defaultChecked className="sr-only peer" />
+                      <input
+                        type="checkbox"
+                        checked={notifPrefs[item.key as keyof typeof notifPrefs]}
+                        onChange={() => toggleNotif(item.key)}
+                        className="sr-only peer"
+                      />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:after:border-gray-600 peer-checked:bg-primary-500" />
                     </label>
                   </div>
@@ -134,39 +225,41 @@ export default function SettingsPage() {
           {activeTab === 'security' && (
             <Card>
               <CardTitle>Segurança</CardTitle>
+              <p className="text-body-xs text-gray-500 mt-1">Gerencie sua senha e segurança da conta</p>
               <div className="mt-6 space-y-6">
                 <div>
                   <h4 className="text-body font-medium mb-3">Alterar Senha</h4>
                   <div className="space-y-3">
-                    <Input label="Senha Atual" type="password" />
-                    <Input label="Nova Senha" type="password" />
-                    <Input label="Confirmar Nova Senha" type="password" />
+                    <Input
+                      label="Senha Atual"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="Digite sua senha atual"
+                    />
+                    <Input
+                      label="Nova Senha"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 8 caracteres"
+                    />
+                    <Input
+                      label="Confirmar Nova Senha"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Repita a nova senha"
+                    />
                   </div>
-                  <Button className="mt-3" size="sm">Atualizar Senha</Button>
-                </div>
-                <div className="border-t pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-body font-medium">Autenticação de Dois Fatores</h4>
-                      <p className="text-body-sm text-gray-500">Adicione uma camada extra de segurança</p>
-                    </div>
-                    <Button variant="secondary" size="sm">Ativar 2FA</Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {activeTab === 'api' && (
-            <Card>
-              <CardTitle>Chaves de API</CardTitle>
-              <p className="text-body-sm text-gray-500 mt-1">Gerencie suas chaves de acesso à API</p>
-              <div className="mt-4">
-                <Button variant="secondary" size="sm" icon={<Key className="w-4 h-4" />}>
-                  Gerar Nova Chave
-                </Button>
-                <div className="mt-4 p-4 bg-gray-50 dark:bg-surface-dark rounded-lg border">
-                  <p className="text-body-xs text-gray-500">Nenhuma chave de API criada ainda.</p>
+                  <Button
+                    className="mt-3"
+                    size="sm"
+                    loading={savingPassword}
+                    onClick={handleChangePassword}
+                  >
+                    Atualizar Senha
+                  </Button>
                 </div>
               </div>
             </Card>

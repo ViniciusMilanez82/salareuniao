@@ -1,19 +1,16 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { signInWithEmail } from '@/lib/supabase/auth'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { ROUTES } from '@/config/routes'
 
-const loginSchema = z.object({
-  email: z.string().email('Email inválido'),
-  password: z.string().min(6, 'Mínimo 6 caracteres'),
-})
-
-type LoginForm = z.infer<typeof loginSchema>
+interface LoginForm {
+  email: string
+  password: string
+}
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
@@ -48,9 +45,12 @@ export default function LoginPage() {
 
   return (
     <div>
-      <h2 className="text-h3 text-center mb-1">Acessar plataforma</h2>
-      <p className="text-body-sm text-gray-500 text-center mb-6">
-        Entre com suas credenciais para continuar
+      <h2 className="text-h3 text-center mb-1">Bem-vindo à Sala de Reunião</h2>
+      <p className="text-body-sm text-gray-500 text-center mb-2">
+        Plataforma de debates com inteligência artificial
+      </p>
+      <p className="text-body-xs text-gray-400 text-center mb-6">
+        Entre com seu email e senha para acessar
       </p>
 
       {error && (
@@ -99,9 +99,9 @@ export default function LoginPage() {
           Criar nova conta
         </Link>
       </p>
-      {import.meta.env.PROD && (
+      {import.meta.env.DEV && (
         <p className="text-center text-body-xs text-gray-400 mt-4 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-          Admin: admin@salareuniao.local / password
+          Dev: admin@salareuniao.local / password
         </p>
       )}
     </div>

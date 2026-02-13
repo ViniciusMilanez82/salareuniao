@@ -47,8 +47,8 @@ ENV PORT=3001
 
 EXPOSE 3001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/api/health || exit 1
+# Health check (usa 127.0.0.1 para evitar IPv6 no Alpine)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3001/api/health || exit 1
 
 CMD ["node", "server/dist/index.js"]

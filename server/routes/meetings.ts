@@ -1,15 +1,21 @@
 import { Router, Response } from 'express'
 import { query } from '../db.js'
-import { authMiddleware, AuthRequest } from '../middleware/auth.js'
+import { authMiddleware, AuthRequest, canAccessWorkspace } from '../middleware/auth.js'
+import { validateUuidParam } from '../middleware/validateUuid.js'
 
 const router = Router()
 router.use(authMiddleware)
+router.param('id', validateUuidParam)
+router.param('agentId', validateUuidParam)
 
 // GET /api/meetings?workspace_id=xxx
 router.get('/', async (req: AuthRequest, res: Response) => {
   try {
     const { workspace_id, status, meeting_type } = req.query
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id obrigatório' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(workspace_id as string, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
 
     let sql = `
       SELECT m.*,
@@ -48,8 +54,10 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const meetingRes = await query('SELECT * FROM meetings WHERE id = $1', [req.params.id])
     if (meetingRes.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
-
     const meeting = meetingRes.rows[0]
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meeting.workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
 
     const [agentsRes, participantsRes, transcriptsRes, actionsRes] = await Promise.all([
       query(`SELECT ma.*, a.name as agent_name, a.role as agent_role, a.avatar_url as agent_avatar,
@@ -87,6 +95,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     if (!workspace_id || !title) {
       return res.status(400).json({ error: 'workspace_id e title são obrigatórios' })
     }
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
 
     const result = await query(
       `INSERT INTO meetings (
@@ -129,6 +140,12 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 // PUT /api/meetings/:id
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
+
     const fields = ['title', 'description', 'topic', 'meeting_type', 'status',
       'scheduled_start', 'scheduled_end', 'actual_start', 'actual_end',
       'summary', 'tags']
@@ -171,6 +188,11 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 // POST /api/meetings/:id/start
 router.post('/:id/start', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const result = await query(
       `UPDATE meetings SET status = 'in_progress', actual_start = NOW() WHERE id = $1 RETURNING *`,
       [req.params.id]
@@ -184,6 +206,11 @@ router.post('/:id/start', async (req: AuthRequest, res: Response) => {
 // POST /api/meetings/:id/pause
 router.post('/:id/pause', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const result = await query(
       `UPDATE meetings SET status = 'paused' WHERE id = $1 RETURNING *`,
       [req.params.id]
@@ -197,6 +224,11 @@ router.post('/:id/pause', async (req: AuthRequest, res: Response) => {
 // POST /api/meetings/:id/resume
 router.post('/:id/resume', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const result = await query(
       `UPDATE meetings SET status = 'in_progress' WHERE id = $1 RETURNING *`,
       [req.params.id]
@@ -210,6 +242,11 @@ router.post('/:id/resume', async (req: AuthRequest, res: Response) => {
 // POST /api/meetings/:id/end
 router.post('/:id/end', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const { summary } = req.body
     const result = await query(
       `UPDATE meetings SET status = 'completed', actual_end = NOW(), summary = $2 WHERE id = $1 RETURNING *`,
@@ -224,6 +261,11 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
 // POST /api/meetings/:id/agents
 router.post('/:id/agents', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const { agent_id, role_in_meeting, speaking_order } = req.body
     const result = await query(
       `INSERT INTO meeting_agents (meeting_id, agent_id, role_in_meeting, speaking_order)
@@ -239,6 +281,11 @@ router.post('/:id/agents', async (req: AuthRequest, res: Response) => {
 // DELETE /api/meetings/:id/agents/:agentId
 router.delete('/:id/agents/:agentId', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     await query(
       'DELETE FROM meeting_agents WHERE meeting_id = $1 AND agent_id = $2',
       [req.params.id, req.params.agentId]
@@ -252,6 +299,11 @@ router.delete('/:id/agents/:agentId', async (req: AuthRequest, res: Response) =>
 // GET /api/meetings/:id/transcripts
 router.get('/:id/transcripts', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const result = await query(
       'SELECT * FROM transcripts WHERE meeting_id = $1 ORDER BY sequence_number ASC',
       [req.params.id]
@@ -265,6 +317,11 @@ router.get('/:id/transcripts', async (req: AuthRequest, res: Response) => {
 // POST /api/meetings/:id/transcripts
 router.post('/:id/transcripts', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const { speaker_type, speaker_id, speaker_name, content, content_type, sentiment_score, topics } = req.body
 
     // Pegar o próximo sequence_number
@@ -290,22 +347,30 @@ router.post('/:id/transcripts', async (req: AuthRequest, res: Response) => {
 router.post('/:id/run-turn', async (req: AuthRequest, res: Response) => {
   try {
     const meetingId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
-    const { runDebateTurn } = await import('../services/orchestrator.js')
     const meeting = await query('SELECT workspace_id FROM meetings WHERE id = $1', [meetingId])
     if (meeting.rows.length === 0) return res.status(404).json({ error: 'Reunião não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meeting.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const workspaceId = meeting.rows[0].workspace_id
+    const { runDebateTurn } = await import('../services/orchestrator.js')
     const provider = (req.body.provider as 'openai' | 'anthropic') || 'openai'
     const result = await runDebateTurn(meetingId, workspaceId, provider)
     return res.json(result)
   } catch (err: any) {
     console.error('Erro run-turn:', err)
-    return res.status(500).json({ error: err.message })
+    return res.status(500).json({ error: 'Erro ao executar turno do debate' })
   }
 })
 
 // DELETE /api/meetings/:id
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     await query('DELETE FROM meetings WHERE id = $1', [req.params.id])
     return res.json({ message: 'Sessão removida' })
   } catch (err: any) {

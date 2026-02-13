@@ -1,9 +1,12 @@
 import { Router, Response } from 'express'
+import crypto from 'crypto'
 import { query } from '../db.js'
-import { authMiddleware, AuthRequest } from '../middleware/auth.js'
+import { authMiddleware, AuthRequest, canAccessWorkspace } from '../middleware/auth.js'
+import { validateUuidParam } from '../middleware/validateUuid.js'
 
 const router = Router()
 router.use(authMiddleware)
+router.param('id', validateUuidParam)
 
 // GET /api/workspaces
 router.get('/', async (req: AuthRequest, res: Response) => {
@@ -25,13 +28,17 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 // GET /api/workspaces/:id
 router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const wsId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(wsId, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const result = await query(
       `SELECT w.*,
         (SELECT COUNT(*) FROM workspace_members wm WHERE wm.workspace_id = w.id AND wm.is_active = true)::int as member_count,
         (SELECT COUNT(*) FROM ai_agents a WHERE a.workspace_id = w.id AND a.is_active = true)::int as agent_count,
         (SELECT COUNT(*) FROM meetings m WHERE m.workspace_id = w.id)::int as meeting_count
        FROM workspaces w WHERE w.id = $1`,
-      [req.params.id]
+      [wsId]
     )
     if (result.rows.length === 0) return res.status(404).json({ error: 'Workspace não encontrado' })
     return res.json(result.rows[0])
@@ -43,13 +50,17 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 // GET /api/workspaces/:id/members
 router.get('/:id/members', async (req: AuthRequest, res: Response) => {
   try {
+    const wsId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(wsId, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const result = await query(
       `SELECT wm.*, u.email, u.name, u.avatar_url, u.last_active_at, u.is_active as user_active
        FROM workspace_members wm
        JOIN users u ON u.id = wm.user_id
        WHERE wm.workspace_id = $1
        ORDER BY wm.role, u.name`,
-      [req.params.id]
+      [wsId]
     )
     return res.json(result.rows)
   } catch (err: any) {
@@ -60,13 +71,20 @@ router.get('/:id/members', async (req: AuthRequest, res: Response) => {
 // POST /api/workspaces/:id/invite
 router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
   try {
+    const wsId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(wsId, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const { email, role, message } = req.body
-    const token = require('crypto').randomBytes(32).toString('hex')
+    if (!email) return res.status(400).json({ error: 'Email é obrigatório' })
+    const validRoles = ['workspace_admin', 'moderator', 'agent_creator', 'observer', 'analyst', 'integrator']
+    if (role && !validRoles.includes(role)) return res.status(400).json({ error: `Role inválido. Use: ${validRoles.join(', ')}` })
+    const token = crypto.randomBytes(32).toString('hex')
 
     const result = await query(
       `INSERT INTO invitations (workspace_id, invited_by, email, role, token, message)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.params.id, req.user!.id, email, role || 'observer', token, message || null]
+      [wsId, req.user!.id, email, role || 'observer', token, message || null]
     )
 
     return res.status(201).json(result.rows[0])
@@ -78,7 +96,10 @@ router.post('/:id/invite', async (req: AuthRequest, res: Response) => {
 // GET /api/workspaces/:id/dashboard
 router.get('/:id/dashboard', async (req: AuthRequest, res: Response) => {
   try {
-    const wsId = req.params.id
+    const wsId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(wsId, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
 
     const [statsRes, recentSessionsRes, topAgentsRes, recentActivityRes] = await Promise.all([
       query(`

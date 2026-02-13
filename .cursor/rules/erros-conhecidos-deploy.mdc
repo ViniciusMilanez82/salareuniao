@@ -1,0 +1,62 @@
+---
+description: Erros conhecidos de deploy, banco de dados e VPS — soluções documentadas
+alwaysApply: true
+---
+
+# Erros Conhecidos — Deploy e Infraestrutura
+
+## 1. Bcrypt — Hash incompatível
+**Problema:** Hash `$2a$12$92IXU...` do Laravel NÃO funciona com bcryptjs do Node.
+**Causa:** O prefixo `$2a$` com salt do Laravel gera hash diferente do bcryptjs `$2b$`.
+**Solução:** Sempre gerar hash com `bcryptjs` no Node:
+```bash
+node -e "const b=require('bcryptjs'); b.hash('password',12).then(h=>console.log(h))"
+```
+O hash correto para "password" é: `$2b$12$f4mOaVY4PhfqkIokVkc7heIfUSFIpHweHHGBPScKp31H8javkiT0C`
+**Arquivo:** `server/truncate-full-reset.sql` — sempre usar hash `$2b$` gerado por bcryptjs.
+
+## 2. Docker Healthcheck — IPv6 no Alpine
+**Problema:** `wget http://localhost:3001/...` no Alpine tenta IPv6 `[::1]` primeiro e falha.
+**Solução:** Usar `http://127.0.0.1:3001/...` em vez de `localhost` no healthcheck.
+**Arquivo:** `Dockerfile` — healthcheck deve usar `127.0.0.1`.
+
+## 3. PowerShell + SSH — JSON com aspas quebradas
+**Problema:** Enviar JSON via `ssh root@vps "curl -d '{"key":"val"}'"` no PowerShell QUEBRA as aspas.
+**Causa:** PowerShell remove `"` antes de enviar ao SSH.
+**Solução:** Criar um arquivo `.sh` local, enviar via `scp`, e executar `bash /tmp/script.sh` na VPS.
+```powershell
+scp script.sh root@187.77.32.67:/tmp/
+ssh root@187.77.32.67 "sed -i 's/\r$//' /tmp/script.sh; bash /tmp/script.sh"
+```
+**Importante:** Sempre rodar `sed -i 's/\r$//'` para remover `\r` do Windows (CRLF → LF).
+
+## 4. PowerShell — `&&` não funciona em versões antigas
+**Problema:** `comando1 && comando2` dá erro `O token '&&' não é um separador válido`.
+**Solução:** Usar `;` em vez de `&&`, ou rodar comandos separados.
+
+## 5. SCP de scripts — Line endings Windows
+**Problema:** Scripts `.sh` enviados do Windows têm `\r\n` que quebram no Linux.
+**Solução:** Sempre rodar `sed -i 's/\r$//'` no arquivo antes de executar, ou usar:
+```powershell
+scp arquivo.sh root@vps:/tmp/
+ssh root@vps "sed -i 's/\r$//' /tmp/arquivo.sh; bash /tmp/arquivo.sh"
+```
+
+## 6. Deploy — Ordem correta
+O deploy.ps1 faz nesta ordem:
+1. `mkdir -p /opt/salareuniao`
+2. SCP dos arquivos (incluindo `.env.vps` → `.env`)
+3. `docker compose up -d --build`
+4. Truncate + Reset do banco (truncate-full-reset.sql)
+5. Seed dos agentes (seed-agents.sql)
+6. `npm install && npm run migrate`
+7. Health check
+
+## 7. Express 5 — Error handler
+Express 5 requer 4 parâmetros no error handler: `(err, req, res, next)`.
+O body-parser retorna erros 400 para JSON malformado — o error handler genérico captura como 500.
+
+## 8. Variáveis de ambiente no Docker
+O container app recebe env vars via `docker-compose.yml` `environment:`, NÃO via `.env` dentro do container.
+O `.env` na raiz é usado pelo `docker compose` para interpolação (`${VAR:-default}`).
+Para o `npm run migrate` na VPS (fora do Docker), o `.env` local é usado.

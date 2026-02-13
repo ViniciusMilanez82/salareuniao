@@ -3,17 +3,18 @@
  * Permite agentes pesquisarem fatos em tempo real
  */
 import { query } from '../db.js'
+import { decrypt } from '../lib/encrypt.js'
 
 export async function getSerperKey(workspaceId: string): Promise<string | null> {
   const res = await query(
     `SELECT api_key_encrypted FROM integration_settings
      WHERE provider = 'serper' AND is_active = true
-     AND (workspace_id = $2 OR workspace_id IS NULL)
+     AND (workspace_id = $1 OR workspace_id IS NULL)
      ORDER BY workspace_id DESC NULLS LAST
      LIMIT 1`,
-    ['serper', workspaceId]
+    [workspaceId]
   )
-  if (res.rows[0]?.api_key_encrypted) return res.rows[0].api_key_encrypted
+  if (res.rows[0]?.api_key_encrypted) return decrypt(res.rows[0].api_key_encrypted)
   return process.env.SERPER_API_KEY || null
 }
 

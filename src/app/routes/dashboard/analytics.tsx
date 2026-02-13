@@ -31,7 +31,7 @@ export default function AnalyticsPage() {
     { label: 'Total de Sessões', value: String(totalSessions), icon: BarChart3, color: 'text-primary-500 bg-primary-100 dark:bg-primary-900/30' },
     { label: 'Horas de Debate', value: `${totalHours}h`, icon: Clock, color: 'text-accent-500 bg-accent-100 dark:bg-accent-900/30' },
     { label: 'Agentes Ativos', value: String(agents.length), icon: Bot, color: 'text-violet-500 bg-violet-100 dark:bg-violet-900/30' },
-    { label: 'Agentes (total)', value: String(agents.length), icon: Zap, color: 'text-secondary-500 bg-secondary-100 dark:bg-secondary-900/30' },
+    { label: 'Sessões Concluídas', value: String(meetings.filter(m => m.status === 'completed').length), icon: Zap, color: 'text-secondary-500 bg-secondary-100 dark:bg-secondary-900/30' },
   ]
 
   const topAgents = [...agents]
@@ -40,7 +40,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <h1 className="text-h2">Analytics</h1>
+      <h1 className="text-h2">Métricas</h1>
       <p className="text-body text-gray-500">Métricas e insights do workspace</p>
 
       {/* KPI Cards */}
@@ -137,8 +137,8 @@ export default function AnalyticsPage() {
                   <p className="text-body-xs text-gray-500">{a.usage_count ?? 0} sessões</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-body-sm font-semibold text-secondary-500">{(a.average_rating ?? 0) * 20}%</p>
-                  <p className="text-body-xs text-gray-500">rating</p>
+                  <p className="text-body-sm font-semibold text-secondary-500">{((a.average_rating ?? 0)).toFixed(1)}/5</p>
+                  <p className="text-body-xs text-gray-500">avaliação</p>
                 </div>
               </div>
             ))

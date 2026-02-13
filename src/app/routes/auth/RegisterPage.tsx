@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { signUpWithEmail } from '@/lib/supabase/auth'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { ROUTES } from '@/config/routes'
 import { Check, X } from 'lucide-react'
 
@@ -20,7 +21,6 @@ interface RegisterForm {
 export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
   const navigate = useNavigate()
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterForm>()
@@ -39,8 +39,15 @@ export default function RegisterPage() {
     setLoading(true)
     setError('')
     try {
-      await signUpWithEmail(data.email, data.password, data.name, data.company, data.jobTitle)
-      setSuccess(true)
+      const result = await signUpWithEmail(data.email, data.password, data.name, data.company, data.jobTitle)
+      // Auto-login após registro
+      const { setUser, setWorkspace, setMembership } = useAuthStore.getState()
+      setUser(result.user as any)
+      if (result.workspaces?.length > 0) {
+        setWorkspace(result.workspaces[0] as any)
+        setMembership({ role: result.workspaces[0].role } as any)
+      }
+      navigate(ROUTES.DASHBOARD)
     } catch (err: any) {
       setError(err.message || 'Erro ao criar conta')
     } finally {
@@ -48,28 +55,14 @@ export default function RegisterPage() {
     }
   }
 
-  if (success) {
-    return (
-      <div className="text-center py-4">
-        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-secondary-100 dark:bg-secondary-900/30 flex items-center justify-center">
-          <Check className="w-8 h-8 text-secondary-500" />
-        </div>
-        <h2 className="text-h3 mb-2">Conta criada!</h2>
-        <p className="text-body-sm text-gray-500 mb-6">
-          Enviamos um link de verificação para seu email. Verifique sua caixa de entrada.
-        </p>
-        <Button onClick={() => navigate(ROUTES.LOGIN)} className="w-full">
-          Ir para o Login
-        </Button>
-      </div>
-    )
-  }
-
   return (
     <div>
-      <h2 className="text-h3 text-center mb-1">Criar nova conta</h2>
-      <p className="text-body-sm text-gray-500 text-center mb-6">
-        Comece a usar a plataforma gratuitamente
+      <h2 className="text-h3 text-center mb-1">Crie sua conta grátis</h2>
+      <p className="text-body-sm text-gray-500 text-center mb-2">
+        Comece a criar debates com agentes de IA em minutos
+      </p>
+      <p className="text-body-xs text-gray-400 text-center mb-6">
+        Sua conta já vem com 15 agentes prontos para usar
       </p>
 
       {error && (

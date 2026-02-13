@@ -3,6 +3,18 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
+const isProd = process.env.NODE_ENV === 'production'
+if (isProd) {
+  const missing = []
+  if (!process.env.POSTGRES_USER) missing.push('POSTGRES_USER')
+  if (!process.env.POSTGRES_PASSWORD) missing.push('POSTGRES_PASSWORD')
+  if (!process.env.POSTGRES_DB) missing.push('POSTGRES_DB')
+  if (missing.length > 0) {
+    console.error('❌ Em produção defina:', missing.join(', '))
+    process.exit(1)
+  }
+}
+
 const { Pool } = pg
 
 const connectionConfig = {

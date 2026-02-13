@@ -2,6 +2,7 @@
 # SALA DE REUNIÃO - Docker Compose
 # PostgreSQL + App (backend + frontend)
 # ============================================
+# IMPORTANTE: Defina TODAS as variáveis em .env (nunca use defaults reais aqui)
 
 services:
   # -----------------------------------------------
@@ -12,15 +13,14 @@ services:
     container_name: salareuniao-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-A39bokKZClHrBqXC}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ex4x8VZVSogaZL0Bpvj7oGNJkFoWbT0K}
-      POSTGRES_DB: ${POSTGRES_DB:-MHL6sIvZvAqZsACp}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # Porta NÃO exposta externamente — acesso apenas via rede interna Docker
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-A39bokKZClHrBqXC} -d ${POSTGRES_DB:-MHL6sIvZvAqZsACp}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -42,13 +42,13 @@ services:
       PORT: 3001
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-A39bokKZClHrBqXC}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ex4x8VZVSogaZL0Bpvj7oGNJkFoWbT0K}
-      POSTGRES_DB: ${POSTGRES_DB:-MHL6sIvZvAqZsACp}
-      JWT_SECRET: ${JWT_SECRET:-sala-reuniao-jwt-mude-isso-em-producao-2026}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      CORS_ORIGIN: ${CORS_ORIGIN:-*}
-    # Porta 3001 só na rede interna (nginx acessa em app:3001)
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://187.77.32.67}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
 
   # -----------------------------------------------
   # Nginx (Reverse Proxy + SSL)

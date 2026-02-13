@@ -1,9 +1,11 @@
 import { Router, Response } from 'express'
 import { query } from '../db.js'
-import { authMiddleware, AuthRequest } from '../middleware/auth.js'
+import { authMiddleware, AuthRequest, canAccessWorkspace } from '../middleware/auth.js'
+import { validateUuidParam } from '../middleware/validateUuid.js'
 
 const router = Router()
 router.use(authMiddleware)
+router.param('id', validateUuidParam)
 
 // GET /api/agents?workspace_id=xxx
 router.get('/', async (req: AuthRequest, res: Response) => {
@@ -11,6 +13,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
     const { workspace_id, search, tag, is_template } = req.query
 
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id obrigatório' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(workspace_id as string, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
 
     let sql = `SELECT * FROM ai_agents WHERE workspace_id = $1 AND is_active = true`
     const params: unknown[] = [workspace_id]
@@ -47,7 +52,11 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
   try {
     const result = await query('SELECT * FROM ai_agents WHERE id = $1', [req.params.id])
     if (result.rows.length === 0) return res.status(404).json({ error: 'Agente não encontrado' })
-    return res.json(result.rows[0])
+    const agent = result.rows[0]
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(agent.workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
+    return res.json(agent)
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro interno' })
   }
@@ -65,6 +74,9 @@ router.post('/', async (req: AuthRequest, res: Response) => {
     if (!workspace_id || !name || !role) {
       return res.status(400).json({ error: 'workspace_id, name e role são obrigatórios' })
     }
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
 
     const result = await query(
       `INSERT INTO ai_agents (
@@ -95,6 +107,12 @@ router.post('/', async (req: AuthRequest, res: Response) => {
 // PUT /api/agents/:id
 router.put('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const existing = await query('SELECT workspace_id FROM ai_agents WHERE id = $1', [req.params.id])
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'Agente não encontrado' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(existing.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
+
     const fields = ['name', 'description', 'role', 'expertise', 'system_prompt',
       'personality_traits', 'voice_settings', 'visual_avatar', 'behavior_settings',
       'model_settings', 'tags', 'is_template', 'is_public', 'is_active']
@@ -131,6 +149,11 @@ router.put('/:id', async (req: AuthRequest, res: Response) => {
 // DELETE /api/agents/:id (soft delete)
 router.delete('/:id', async (req: AuthRequest, res: Response) => {
   try {
+    const existing = await query('SELECT workspace_id FROM ai_agents WHERE id = $1', [req.params.id])
+    if (existing.rows.length === 0) return res.status(404).json({ error: 'Agente não encontrado' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(existing.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     await query('UPDATE ai_agents SET is_active = false WHERE id = $1', [req.params.id])
     return res.json({ message: 'Agente removido' })
   } catch (err: any) {
@@ -143,8 +166,10 @@ router.post('/:id/duplicate', async (req: AuthRequest, res: Response) => {
   try {
     const original = await query('SELECT * FROM ai_agents WHERE id = $1', [req.params.id])
     if (original.rows.length === 0) return res.status(404).json({ error: 'Agente não encontrado' })
-
     const a = original.rows[0]
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(a.workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const result = await query(
       `INSERT INTO ai_agents (workspace_id, created_by, name, description, role, expertise, system_prompt,
         personality_traits, voice_settings, visual_avatar, behavior_settings, model_settings, tags)
@@ -165,6 +190,11 @@ router.post('/:id/duplicate', async (req: AuthRequest, res: Response) => {
 // GET /api/agents/:id/knowledge
 router.get('/:id/knowledge', async (req: AuthRequest, res: Response) => {
   try {
+    const agentRow = await query('SELECT workspace_id FROM ai_agents WHERE id = $1', [req.params.id])
+    if (agentRow.rows.length === 0) return res.status(404).json({ error: 'Agente não encontrado' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(agentRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const result = await query(
       'SELECT * FROM agent_knowledge WHERE agent_id = $1 AND is_active = true ORDER BY created_at DESC',
       [req.params.id]
@@ -178,6 +208,11 @@ router.get('/:id/knowledge', async (req: AuthRequest, res: Response) => {
 // POST /api/agents/:id/knowledge
 router.post('/:id/knowledge', async (req: AuthRequest, res: Response) => {
   try {
+    const agentRow = await query('SELECT workspace_id FROM ai_agents WHERE id = $1', [req.params.id])
+    if (agentRow.rows.length === 0) return res.status(404).json({ error: 'Agente não encontrado' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(agentRow.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
     const { title, content, category, tags, source_type } = req.body
     const result = await query(
       `INSERT INTO agent_knowledge (agent_id, title, content, category, tags, source_type)

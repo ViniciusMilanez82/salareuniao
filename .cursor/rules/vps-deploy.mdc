@@ -1,0 +1,60 @@
+---
+description: Procedimentos de deploy na VPS Hostinger e troubleshooting
+alwaysApply: true
+---
+
+# Deploy VPS — Procedimentos
+
+## Dados da VPS
+- **IP:** 187.77.32.67
+- **Hostname:** srv1353769.hstgr.cloud
+- **SSH:** `root@187.77.32.67` (chave SSH configurada)
+- **Diretório:** `/opt/salareuniao`
+- **Banco:** PostgreSQL 16 no Docker
+  - User: `A39bokKZClHrBqXC`
+  - DB: `MHL6sIvZvAqZsACp`
+  - Password: definida no `.env.vps`
+
+## Como fazer deploy
+Executar: `powershell -ExecutionPolicy Bypass -File deploy.ps1`
+
+## Como testar na VPS
+NUNCA enviar JSON via SSH + PowerShell com aspas duplas. Sempre usar:
+1. Criar arquivo `.sh` com o curl
+2. `scp arquivo.sh root@187.77.32.67:/tmp/`
+3. `ssh root@187.77.32.67 "sed -i 's/\r$//' /tmp/arquivo.sh; bash /tmp/arquivo.sh"`
+
+## Credenciais de teste
+- Email: `admin@salareuniao.local`
+- Senha: `password`
+
+## Comandos úteis na VPS
+```bash
+# Ver logs do app
+docker compose -f /opt/salareuniao/docker-compose.yml logs -f app
+
+# Ver status dos containers
+docker ps --format 'table {{.Names}}\t{{.Status}}'
+
+# Reiniciar app
+cd /opt/salareuniao && docker compose restart app
+
+# Acessar banco
+docker compose exec -T postgres psql -U A39bokKZClHrBqXC -d MHL6sIvZvAqZsACp
+
+# Reset completo do banco
+cat server/truncate-full-reset.sql | docker compose exec -T postgres psql -U A39bokKZClHrBqXC -d MHL6sIvZvAqZsACp -f -
+
+# Seed agentes
+cat server/seed-agents.sql | docker compose exec -T postgres psql -U A39bokKZClHrBqXC -d MHL6sIvZvAqZsACp -f -
+
+# Fix senha do admin (gerar hash correto)
+cd /opt/salareuniao && HASH=$(node -e "const b=require('bcryptjs');b.hash('password',12).then(h=>console.log(h))") && docker compose exec -T postgres psql -U A39bokKZClHrBqXC -d MHL6sIvZvAqZsACp -c "UPDATE users SET encrypted_password='$HASH' WHERE email='admin@salareuniao.local';"
+```
+
+## Checklist pós-deploy
+1. `curl http://localhost/api/health` → deve retornar `{"status":"ok","database":"connected"}`
+2. Frontend `curl http://localhost/` → deve retornar HTML do React
+3. Login via script `.sh` → deve retornar token JWT
+4. `docker ps` → todos containers "healthy"
+5. Agentes: `SELECT COUNT(*) FROM ai_agents` → deve ser >= 15

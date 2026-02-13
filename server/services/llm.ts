@@ -1,10 +1,11 @@
 /**
  * Serviço LLM - OpenAI e Anthropic
- * Usa integration_settings ou env vars
+ * Usa integration_settings (criptografadas se ENCRYPTION_KEY) ou env vars
  */
 import OpenAI from 'openai'
 import Anthropic from '@anthropic-ai/sdk'
 import { query } from '../db.js'
+import { decrypt } from '../lib/encrypt.js'
 
 type LLMOptions = {
   model?: string
@@ -25,7 +26,7 @@ export async function getIntegrationKey(
      LIMIT 1`,
     [provider, workspaceId]
   )
-  if (res.rows[0]?.api_key_encrypted) return res.rows[0].api_key_encrypted
+  if (res.rows[0]?.api_key_encrypted) return decrypt(res.rows[0].api_key_encrypted)
 
   // 2. Fallback para env
   if (provider === 'openai') return process.env.OPENAI_API_KEY || null

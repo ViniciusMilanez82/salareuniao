@@ -10,7 +10,7 @@ import { fetchMeetings } from '@/lib/api/meetings'
 import { fetchAgents } from '@/lib/api/agents'
 import {
   Calendar, Bot, TrendingUp, Clock, Plus, ArrowRight,
-  MessageSquare, Zap, BarChart3
+  MessageSquare, Zap, BarChart3, Lightbulb, HelpCircle, Sparkles
 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [meetings, setMeetings] = useState<{ id: string; title: string; status: string; meeting_type: string; duration_minutes: number | null; scheduled_start: string | null; agent_count?: number }[]>([])
   const [agents, setAgents] = useState<{ id: string; name: string; role: string; usage_count?: number; average_rating?: number }[]>([])
   const [loading, setLoading] = useState(true)
+  const [showWelcome, setShowWelcome] = useState(false)
 
   useEffect(() => {
     if (!workspace?.id) {
@@ -31,6 +32,13 @@ export default function DashboardPage() {
     ]).finally(() => setLoading(false))
   }, [workspace?.id])
 
+  useEffect(() => {
+    // Mostrar boas-vindas se não tem sessões nem agentes customizados
+    if (!loading && meetings.length === 0) {
+      setShowWelcome(true)
+    }
+  }, [loading, meetings.length])
+
   const activeSessions = meetings.filter((m) => m.status === 'in_progress').length
   const completedMeetings = meetings.filter((m) => m.status === 'completed')
   const avgDuration = completedMeetings.length > 0
@@ -38,10 +46,10 @@ export default function DashboardPage() {
     : 0
 
   const stats = [
-    { label: 'Sessões Ativas', value: String(activeSessions), icon: Calendar, color: 'text-primary-500 bg-primary-100 dark:bg-primary-900/30' },
-    { label: 'Agentes Criados', value: String(agents.length), icon: Bot, color: 'text-violet-500 bg-violet-100 dark:bg-violet-900/30' },
-    { label: 'Tempo Médio de Debate', value: avgDuration ? `${avgDuration}min` : '—', icon: Clock, color: 'text-accent-500 bg-accent-100 dark:bg-accent-900/30' },
-    { label: 'Sessões Totais', value: String(meetings.length), icon: TrendingUp, color: 'text-secondary-500 bg-secondary-100 dark:bg-secondary-900/30' },
+    { label: 'Sessões Ativas', value: String(activeSessions), icon: Calendar, color: 'text-primary-500 bg-primary-100 dark:bg-primary-900/30', desc: 'Debates em andamento agora' },
+    { label: 'Agentes IA', value: String(agents.length), icon: Bot, color: 'text-violet-500 bg-violet-100 dark:bg-violet-900/30', desc: 'Assistentes disponíveis' },
+    { label: 'Tempo Médio', value: avgDuration ? `${avgDuration}min` : '—', icon: Clock, color: 'text-accent-500 bg-accent-100 dark:bg-accent-900/30', desc: 'Duração média dos debates' },
+    { label: 'Total de Sessões', value: String(meetings.length), icon: TrendingUp, color: 'text-secondary-500 bg-secondary-100 dark:bg-secondary-900/30', desc: 'Sessões criadas até hoje' },
   ]
 
   const recentSessions = meetings.slice(0, 5).map((m) => ({
@@ -73,14 +81,14 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-h2">
-            Bem-vindo, {user?.name?.split(' ')[0] || 'Usuário'}
+            Bem-vindo, {user?.name?.split(' ')[0] || 'Usuário'}!
           </h1>
           <p className="text-body text-gray-500 mt-1">
-            Aqui está o resumo do seu workspace hoje
+            Aqui está o resumo do seu workspace
           </p>
         </div>
         <div className="flex gap-3">
-          <Button variant="secondary" onClick={() => navigate(ROUTES.AGENTS)} icon={<Bot className="w-4 h-4" />}>
+          <Button variant="secondary" onClick={() => navigate(ROUTES.AGENT_CREATE)} icon={<Bot className="w-4 h-4" />}>
             Novo Agente
           </Button>
           <Button onClick={() => navigate(ROUTES.MEETING_CREATE)} icon={<Plus className="w-4 h-4" />}>
@@ -88,6 +96,55 @@ export default function DashboardPage() {
           </Button>
         </div>
       </div>
+
+      {/* Onboarding para leigos */}
+      {showWelcome && (
+        <Card className="bg-gradient-to-r from-primary-50 to-violet-50 dark:from-primary-900/20 dark:to-violet-900/20 border-primary-200 dark:border-primary-800">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center shrink-0">
+              <Sparkles className="w-7 h-7 text-primary-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-body-lg font-semibold">Como funciona a Sala de Reunião?</h3>
+              <p className="text-body-sm text-gray-600 dark:text-gray-400 mt-1">
+                Aqui você cria debates simulados com agentes de IA. Cada agente tem sua personalidade 
+                e expertise. Eles discutem o tema que você escolher, trazendo diferentes pontos de vista.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-white/60 dark:bg-gray-800/40">
+                  <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-body-xs font-bold flex items-center justify-center shrink-0">1</span>
+                  <div>
+                    <p className="text-body-sm font-medium">Crie uma sessão</p>
+                    <p className="text-body-xs text-gray-500">Defina o tema e escolha os agentes</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-white/60 dark:bg-gray-800/40">
+                  <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-body-xs font-bold flex items-center justify-center shrink-0">2</span>
+                  <div>
+                    <p className="text-body-sm font-medium">Execute os turnos</p>
+                    <p className="text-body-xs text-gray-500">Clique para cada agente falar</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-white/60 dark:bg-gray-800/40">
+                  <span className="w-6 h-6 rounded-full bg-primary-500 text-white text-body-xs font-bold flex items-center justify-center shrink-0">3</span>
+                  <div>
+                    <p className="text-body-sm font-medium">Exporte o resultado</p>
+                    <p className="text-body-xs text-gray-500">Baixe a transcrição completa</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <Button size="sm" onClick={() => navigate(ROUTES.MEETING_CREATE)} icon={<Zap className="w-4 h-4" />}>
+                  Criar minha primeira sessão
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowWelcome(false)}>
+                  Entendi, fechar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -100,6 +157,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-body-sm text-gray-500">{stat.label}</p>
                   <p className="text-h2 mt-1">{stat.value}</p>
+                  <p className="text-body-xs text-gray-400 mt-0.5">{stat.desc}</p>
                 </div>
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${stat.color}`}>
                   <stat.icon className="w-5 h-5" />
@@ -123,12 +181,16 @@ export default function DashboardPage() {
             <CardContent>
               <div className="space-y-3">
                 {recentSessions.length === 0 ? (
-                  <p className="text-body-sm text-gray-500 py-4">Nenhuma sessão recente</p>
+                  <div className="py-6 text-center">
+                    <Calendar className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                    <p className="text-body-sm text-gray-500">Nenhuma sessão ainda</p>
+                    <p className="text-body-xs text-gray-400 mt-1">Crie sua primeira sessão para começar!</p>
+                  </div>
                 ) : (
                   recentSessions.map((session) => (
                     <div
                       key={session.id}
-                      onClick={() => navigate(ROUTES.MEETINGS)}
+                      onClick={() => navigate(`/meetings/${session.id}/room`)}
                       className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
                     >
                       <div className="flex items-center gap-3">
@@ -138,7 +200,7 @@ export default function DashboardPage() {
                         <div>
                           <p className="text-body-sm font-medium">{session.title}</p>
                           <p className="text-body-xs text-gray-500">
-                            {session.agents} agentes &middot; {session.duration} &middot; {session.date}
+                            {session.agents} agente(s) &middot; {session.duration} &middot; {session.date}
                           </p>
                         </div>
                       </div>
@@ -162,10 +224,18 @@ export default function DashboardPage() {
           <CardContent>
             <div className="space-y-3">
               {topAgents.length === 0 ? (
-                <p className="text-body-sm text-gray-500 py-4">Nenhum agente ainda</p>
+                <div className="py-6 text-center">
+                  <Bot className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                  <p className="text-body-sm text-gray-500">Seus agentes de IA</p>
+                  <p className="text-body-xs text-gray-400 mt-1">Eles já estão prontos para usar</p>
+                </div>
               ) : (
                 topAgents.map((agent, idx) => (
-                  <div key={agent.id} className="flex items-center gap-3">
+                  <div
+                    key={agent.id}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
+                    onClick={() => navigate(`/agents/${agent.id}/edit`)}
+                  >
                     <span className="text-body-xs text-gray-400 w-4">{idx + 1}</span>
                     <Avatar name={agent.name} size="sm" />
                     <div className="flex-1 min-w-0">
@@ -174,7 +244,6 @@ export default function DashboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-body-xs font-medium">{agent.usage_count ?? 0}x</p>
-                      <p className="text-body-xs text-accent-500">&#9733; {agent.average_rating ?? '-'}</p>
                     </div>
                   </div>
                 ))
@@ -193,7 +262,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <p className="font-medium">Sessão Rápida</p>
-              <p className="text-body-sm text-gray-500">Iniciar debate em segundos</p>
+              <p className="text-body-sm text-gray-500">Iniciar um debate em segundos</p>
             </div>
           </div>
         </Card>
@@ -204,7 +273,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <p className="font-medium">Criar Agente</p>
-              <p className="text-body-sm text-gray-500">Personalize um novo agente IA</p>
+              <p className="text-body-sm text-gray-500">Personalize um assistente de IA</p>
             </div>
           </div>
         </Card>
@@ -214,8 +283,8 @@ export default function DashboardPage() {
               <BarChart3 className="w-6 h-6 text-secondary-500" />
             </div>
             <div>
-              <p className="font-medium">Ver Analytics</p>
-              <p className="text-body-sm text-gray-500">Insights e métricas</p>
+              <p className="font-medium">Ver Métricas</p>
+              <p className="text-body-sm text-gray-500">Insights e estatísticas</p>
             </div>
           </div>
         </Card>

@@ -1,9 +1,21 @@
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
+import rateLimit from 'express-rate-limit'
 import { query } from '../db.js'
 import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth.js'
 
 const router = Router()
+
+// Rate limiting para login e registro
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 15, // máximo 15 tentativas por IP
+  message: { error: 'Muitas tentativas. Aguarde 15 minutos antes de tentar novamente.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+router.use('/login', authLimiter)
+router.use('/register', authLimiter)
 
 // POST /api/auth/register
 router.post('/register', async (req: Request, res: Response) => {
@@ -50,6 +62,19 @@ router.post('/register', async (req: Request, res: Response) => {
       [wsResult.rows[0].id, user.id]
     )
 
+    // Seed dos 15 agentes template no novo workspace
+    const { seedAgentsForWorkspace } = await import('../services/seed-agents.js')
+    await seedAgentsForWorkspace(wsResult.rows[0].id, user.id)
+
+    // Buscar workspace completo para resposta
+    const wsData = await query(
+      `SELECT w.id, w.name, w.slug, w.logo_url, w.plan, wm.role
+       FROM workspaces w
+       JOIN workspace_members wm ON wm.workspace_id = w.id
+       WHERE w.id = $1 AND wm.user_id = $2`,
+      [wsResult.rows[0].id, user.id]
+    )
+
     const token = generateToken({
       id: user.id,
       email: user.email,
@@ -59,7 +84,7 @@ router.post('/register', async (req: Request, res: Response) => {
 
     return res.status(201).json({
       user,
-      workspace: { id: wsResult.rows[0].id },
+      workspaces: wsData.rows,
       token,
     })
   } catch (err: any) {
@@ -115,6 +140,23 @@ router.post('/login', async (req: Request, res: Response) => {
       [user.id]
     )
 
+    // Garantir que cada workspace tenha agentes (fix para users criados antes do seed)
+    for (const ws of workspaces.rows) {
+      try {
+        const agentCount = await query(
+          'SELECT COUNT(*)::int as cnt FROM ai_agents WHERE workspace_id = $1 AND is_active = true',
+          [ws.id]
+        )
+        if (agentCount.rows[0].cnt === 0) {
+          const { seedAgentsForWorkspace } = await import('../services/seed-agents.js')
+          await seedAgentsForWorkspace(ws.id, user.id)
+          console.log(`Seed: agentes inseridos no workspace ${ws.id} (login fix)`)
+        }
+      } catch (seedErr) {
+        console.error(`Erro ao seed de agentes no workspace ${ws.id}:`, seedErr)
+      }
+    }
+
     const token = generateToken({
       id: user.id,
       email: user.email,
@@ -157,6 +199,20 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
       [req.user!.id]
     )
 
+    // Garantir agentes em cada workspace (fix retroativo)
+    for (const ws of workspaces.rows) {
+      try {
+        const agentCount = await query(
+          'SELECT COUNT(*)::int as cnt FROM ai_agents WHERE workspace_id = $1 AND is_active = true',
+          [ws.id]
+        )
+        if (agentCount.rows[0].cnt === 0) {
+          const { seedAgentsForWorkspace } = await import('../services/seed-agents.js')
+          await seedAgentsForWorkspace(ws.id, req.user!.id)
+        }
+      } catch (_) { /* silencioso */ }
+    }
+
     return res.json({
       user: result.rows[0],
       workspaces: workspaces.rows,
@@ -172,9 +228,18 @@ router.put('/password', authMiddleware, async (req: AuthRequest, res: Response) 
   try {
     const { current_password, new_password } = req.body
 
-    const result = await query('SELECT encrypted_password FROM users WHERE id = $1', [req.user!.id])
-    const valid = await bcrypt.compare(current_password, result.rows[0].encrypted_password)
+    if (!current_password) {
+      return res.status(400).json({ error: 'Senha atual é obrigatória' })
+    }
+    if (!new_password || new_password.length < 6) {
+      return res.status(400).json({ error: 'Nova senha deve ter pelo menos 6 caracteres' })
+    }
 
+    const result = await query('SELECT encrypted_password FROM users WHERE id = $1', [req.user!.id])
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' })
+    }
+    const valid = await bcrypt.compare(current_password, result.rows[0].encrypted_password)
     if (!valid) {
       return res.status(401).json({ error: 'Senha atual incorreta' })
     }

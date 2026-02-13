@@ -1,0 +1,54 @@
+---
+description: Regras gerais do projeto Sala de Reunião - arquitetura, stack, convenções e erros conhecidos
+alwaysApply: true
+---
+
+# Sala de Reunião — Regras do Projeto
+
+## Stack
+- **Frontend:** React 18 + TypeScript + Vite + Tailwind CSS + Zustand + React Router 6
+- **Backend:** Node.js + Express 5 + TypeScript (compilado com `tsc -p server/tsconfig.build.json`)
+- **DB:** PostgreSQL 16 (Docker) — SEM pgvector, SEM Supabase RLS em produção
+- **Auth:** JWT (jsonwebtoken) + bcryptjs (12 rounds)
+- **LLM:** OpenAI SDK + Anthropic SDK
+- **Deploy:** Docker Compose (postgres + app + nginx) na VPS Hostinger `187.77.32.67`
+
+## Arquitetura de Pastas
+```
+src/                  → Frontend React
+  app/routes/         → Páginas (por feature)
+  components/ui/      → Componentes reutilizáveis (Button, Card, Input, Badge, Avatar)
+  components/shared/  → Header, Sidebar
+  lib/api/            → Clients REST (client.ts, meetings.ts, agents.ts, contacts.ts, deals.ts)
+  lib/supabase/       → auth.ts (REST, não usa Supabase client), realtime.ts (WebSocket)
+  stores/             → Zustand (useAuthStore, useMeetingStore, useAgentStore)
+  config/             → routes.ts, constants.ts
+  types/              → database.types.ts
+server/               → Backend Express
+  routes/             → Rotas REST (auth, agents, meetings, contacts, deals, workspace, integrations)
+  services/           → orchestrator.ts, llm.ts, search.ts, agent-memory.ts, seed-agents.ts
+  middleware/         → auth.ts (JWT), validateUuid.ts
+  lib/                → encrypt.ts (AES-256-GCM)
+```
+
+## Idioma
+- Responder SEMPRE em português brasileiro
+- Código: variáveis em inglês, labels/textos de UI em português
+- Comentários de código em português quando explicativos
+
+## Convenções de Código
+- Usar `type` em vez de `interface` para props simples
+- Imports com alias `@/` (mapeado para `src/`)
+- API client: `apiGet`, `apiPost`, `apiPut`, `apiDelete` de `@/lib/api/client`
+- Toast: usar `react-hot-toast` (`toast.success`, `toast.error`)
+- Ícones: `lucide-react` — nunca usar outro pacote de ícones
+- CSS: Tailwind classes — nunca criar CSS custom exceto em `globals.css`
+- Componentes UI próprios: `Button`, `Card`, `Input`, `Badge`, `Avatar` — usar estes, não criar novos
+
+## UX — Princípios para Leigos
+- Toda página vazia deve ter um "empty state" explicativo com ação clara
+- Botões devem ter `title` (tooltip nativo) descritivo
+- Formulários em modal com explicações curtas
+- Sidebar colapsada deve mostrar tooltips flutuantes
+- Dashboard deve ter onboarding visual para primeiro acesso
+- Textos devem ser simples e diretos — evitar jargão técnico

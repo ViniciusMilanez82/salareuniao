@@ -4,6 +4,17 @@ import cookieParser from 'cookie-parser'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
+
+dotenv.config()
+
+const isProd = process.env.NODE_ENV === 'production'
+if (isProd) {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'fallback-secret') {
+    console.error('❌ Em produção defina a variável de ambiente JWT_SECRET (valor seguro e único).')
+    process.exit(1)
+  }
+}
+
 import { testConnection, pool } from './db.js'
 
 // Routes
@@ -12,15 +23,14 @@ import agentRoutes from './routes/agents.js'
 import meetingRoutes from './routes/meetings.js'
 import workspaceRoutes from './routes/workspace.js'
 import integrationRoutes from './routes/integrations.js'
-
-dotenv.config()
+import contactsRoutes from './routes/contacts.js'
+import dealsRoutes from './routes/deals.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = express()
 const PORT = parseInt(process.env.PORT || '3001')
-const isProd = process.env.NODE_ENV === 'production'
 
 // Middleware
 app.use(cors({
@@ -61,6 +71,8 @@ app.use('/api/agents', agentRoutes)
 app.use('/api/meetings', meetingRoutes)
 app.use('/api/workspaces', workspaceRoutes)
 app.use('/api/integrations', integrationRoutes)
+app.use('/api/contacts', contactsRoutes)
+app.use('/api/deals', dealsRoutes)
 
 // Servir frontend em produção (dev: server/ -> ../dist; prod: server/dist/ -> ../../dist)
 if (isProd) {
@@ -73,9 +85,12 @@ if (isProd) {
     res.sendFile(path.join(distPath, 'index.html'))
   })
 } else {
-  // 404 handler para API em dev
-  app.use('/api/{*path}', (_req: express.Request, res: express.Response) => {
-    res.status(404).json({ error: 'Rota não encontrada' })
+  // 404 em dev: rotas /api não encontradas
+  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.path.startsWith('/api')) {
+      return res.status(404).json({ error: 'Rota não encontrada' })
+    }
+    res.status(404).send('Frontend não servido em dev. Rode npm run dev e acesse http://localhost:5173')
   })
 }
 
