@@ -13,18 +13,12 @@ import { emitToMeeting } from '../socket.js'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-const MAX_CONTEXT_TRANSCRIPTS = 12
-const MAX_CHARS_PER_TRANSCRIPT = 300
+const MAX_CONTEXT_TRANSCRIPTS = 20
+const MAX_CHARS_PER_TRANSCRIPT = 500
 const MAX_SYSTEM_PROMPT_CHARS = 800
 const LLM_TIMEOUT_MS = 90_000
-const FACILITATOR_INTERVAL = 4 // Facilitador fala a cada N turnos
-
-// Palavras que indicam resposta de baixa densidade
-const LOW_DENSITY_STARTS = [
-  'concordo', 'discordo', 'entendo', 'excelente', 'ótimo',
-  'interessante', 'muito bem', 'perfeito', 'com certeza',
-  'absolutamente', 'sem dúvida', 'é verdade',
-]
+const FACILITATOR_INTERVAL = 4
+const THINK_TIMEOUT_MS = 60_000
 
 type AgentRow = {
   agent_id: string
@@ -44,7 +38,18 @@ function isFacilitator(agent: AgentRow): boolean {
   return name.includes('facilitador') || name.includes('condutor') || role === 'moderador'
 }
 
-/** Seleciona o próximo agente com lógica inteligente */
+/** Detecta se a conversa está em loop (mesmo tema sem progresso) */
+function detectLoop(transcripts: { speaker_name: string; content: string }[]): boolean {
+  if (transcripts.length < 6) return false
+  const last6 = transcripts.slice(-6).map(t => t.content.toLowerCase())
+  const keywords = last6.flatMap(c => c.split(/\s+/).filter(w => w.length > 5))
+  const freq: Record<string, number> = {}
+  for (const w of keywords) freq[w] = (freq[w] || 0) + 1
+  const repeatedWords = Object.values(freq).filter(count => count >= 4).length
+  return repeatedWords > 3
+}
+
+/** Seleciona o próximo agente com lógica conversacional */
 function selectNextAgent(
   agents: AgentRow[],
   transcripts: { speaker_name: string; content: string }[],
@@ -52,50 +57,30 @@ function selectNextAgent(
 ): AgentRow {
   const facilitator = agents.find(isFacilitator)
 
-  // A cada N turnos, Facilitador consolida (se existir e não for o único)
   if (facilitator && agents.length > 1 && turnNumber > 1 && turnNumber % FACILITATOR_INTERVAL === 0) {
     return facilitator
   }
 
-  // Round-robin normal: quem falou menos
+  const relator = agents.find(a => a.agent_role.toLowerCase() === 'relator')
+  if (relator && turnNumber > 1 && turnNumber % 8 === 0) {
+    return relator
+  }
+
   const speakerCounts: Record<string, number> = {}
   for (const t of transcripts) {
     const name = t.speaker_name?.trim()
     if (name) speakerCounts[name] = (speakerCounts[name] || 0) + 1
   }
 
-  // Excluir facilitador do round-robin normal (ele já tem turnos garantidos)
-  const candidates = facilitator && agents.length > 2
-    ? agents.filter(a => !isFacilitator(a))
-    : agents
+  const excludeRoles = ['moderador', 'relator']
+  const candidates = agents.filter(a =>
+    !isFacilitator(a) && !excludeRoles.includes(a.agent_role.toLowerCase())
+  )
 
+  if (candidates.length === 0) return agents[0]
   return candidates.reduce((min, a) =>
     (speakerCounts[a.agent_name] ?? 0) < (speakerCounts[min.agent_name] ?? 0) ? a : min
   )
-}
-
-/** Valida se a resposta tem densidade mínima (não é só concordância) */
-function validateResponseDensity(response: string): { ok: boolean; reason?: string } {
-  const lower = response.toLowerCase().trim()
-
-  // Verifica se começa com frase de baixa densidade
-  for (const start of LOW_DENSITY_STARTS) {
-    if (lower.startsWith(start)) {
-      return { ok: false, reason: `Começou com "${start}". Vá direto ao ponto com ENTREGA.` }
-    }
-  }
-
-  // Verifica se tem pelo menos algum conteúdo útil (bullets, números, opções)
-  const hasBullets = response.includes('- ') || response.includes('• ')
-  const hasNumbers = /\d+/.test(response)
-  const hasStructure = /ENTREGA|PRÓXIMO|ASSUN[ÇC]/i.test(response)
-
-  // Se muito curto e sem estrutura, rejeitar
-  if (response.length < 100 && !hasBullets && !hasNumbers) {
-    return { ok: false, reason: 'Resposta muito curta sem conteúdo acionável.' }
-  }
-
-  return { ok: true }
 }
 
 export async function runDebateTurn(
@@ -143,18 +128,23 @@ export async function runDebateTurn(
     throw new Error('Nenhum agente na reunião. Adicione agentes antes de iniciar.')
   }
 
-  // 3. Buscar transcrições
+  // 3. Buscar transcrições (inclui speaker_type para destacar CEO)
   const transcriptsRes = await query(
-    `SELECT speaker_name, content, sequence_number FROM transcripts
+    `SELECT speaker_name, speaker_type, content, sequence_number FROM transcripts
      WHERE meeting_id = $1 ORDER BY sequence_number DESC LIMIT $2`,
     [meetingId, MAX_CONTEXT_TRANSCRIPTS]
   )
-  const transcripts = transcriptsRes.rows.reverse()
-  const history = transcripts
+  const transcripts = transcriptsRes.rows as { speaker_name: string; speaker_type?: string; content: string; sequence_number: number }[]
+  const transcriptsReversed = [...transcripts].reverse()
+  const history = transcriptsReversed
     .map((t) => {
       const content = t.content.length > MAX_CHARS_PER_TRANSCRIPT
         ? t.content.slice(0, MAX_CHARS_PER_TRANSCRIPT) + '...'
         : t.content
+      const isHuman = t.speaker_type === 'human' || t.speaker_type === 'user'
+      if (isHuman) {
+        return `⚠️ [CEO/USUÁRIO] ${t.speaker_name}: ${content} ⚠️ [DIRETIVA — OBEDEÇA]`
+      }
       return `${t.speaker_name}: ${content}`
     })
     .join('\n\n')
@@ -162,8 +152,18 @@ export async function runDebateTurn(
   const topic = [meeting.title, meeting.topic].filter(Boolean).join(' - ') || 'Debate em andamento'
   const turnNumber = transcripts.length + 1
 
-  // 4. Selecionar próximo agente (Facilitador a cada N turnos)
-  const nextAgent = selectNextAgent(agents, transcripts, turnNumber)
+  // 4. Selecionar próximo agente
+  let nextAgent = selectNextAgent(agents, transcriptsReversed, turnNumber)
+
+  // Detectar loop e forçar intervenção do Condutor
+  const isLooping = detectLoop(transcriptsReversed)
+  if (isLooping && agents.find(isFacilitator)) {
+    const facilitator = agents.find(isFacilitator)!
+    if (nextAgent.agent_id !== facilitator.agent_id) {
+      console.log('[LOOP DETECTADO] Forçando intervenção do Condutor')
+      nextAgent = facilitator as AgentRow
+    }
+  }
 
   // 5. Buscar memórias e conhecimento
   const memories = await getAgentMemories(nextAgent.agent_id)
@@ -205,7 +205,7 @@ export async function runDebateTurn(
     behavior_settings: nextAgent.behavior_settings ?? undefined,
   }
 
-  const context = {
+  const context: Record<string, unknown> = {
     meetingTopic: topic,
     transcriptHistory: history,
     memories: memories || undefined,
@@ -214,20 +214,69 @@ export async function runDebateTurn(
     otherAgents,
     meetingType,
     objectives: objectives || undefined,
+    loopDetected: isLooping,
   }
 
-  // 6. Chamar LLM com timeout
+  // 6. Pipeline Inner Monologue: PENSAR → PESQUISAR → FALAR
   let response: string
   try {
-    response = await Promise.race([
-      generateAgentResponse(agentForLLM, context, workspaceId, provider),
+    console.log(`[INNER MONOLOGUE] ${nextAgent.agent_name} está pensando...`)
+    const thinkContext = { ...context, isThinking: true }
+    const innerMonologue = await Promise.race([
+      generateAgentResponse(agentForLLM, thinkContext as Parameters<typeof generateAgentResponse>[1], workspaceId, provider),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Timeout: a IA demorou mais de 90s para responder.')), LLM_TIMEOUT_MS)
+        setTimeout(() => reject(new Error('Timeout: pensamento demorou mais de 60s.')), THINK_TIMEOUT_MS)
+      ),
+    ])
+    console.log(`[INNER MONOLOGUE] ${nextAgent.agent_name} pensou: ${innerMonologue.slice(0, 200)}...`)
+
+    emitToMeeting(meetingId, 'agent_thinking', {
+      agent_name: nextAgent.agent_name,
+      agent_id: nextAgent.agent_id,
+      status: 'thinking',
+    })
+
+    let searchResults = ''
+    const searchMatch = innerMonologue.match(/\[PESQUISAR:\s*([^\]]+)\]/i)
+    if (searchMatch) {
+      const searchQuery = searchMatch[1].trim()
+      console.log(`[PESQUISA PROATIVA] ${nextAgent.agent_name} pesquisando: "${searchQuery}"`)
+      emitToMeeting(meetingId, 'agent_thinking', {
+        agent_name: nextAgent.agent_name,
+        agent_id: nextAgent.agent_id,
+        status: 'researching',
+        query: searchQuery,
+      })
+      try {
+        const rawResults = await webSearch(searchQuery, workspaceId)
+        if (rawResults) {
+          searchResults = rawResults.slice(0, 1500)
+          await saveAgentMemory(nextAgent.agent_id, `Pesquisa: ${searchQuery} → ${searchResults.slice(0, 300)}`, {
+            sessionId: meetingId,
+            importance: 0.8,
+            memoryType: 'semantic',
+          })
+        }
+      } catch (searchErr) {
+        console.warn('[PESQUISA PROATIVA] Falha:', searchErr)
+      }
+    }
+
+    const speechContext = {
+      ...context,
+      isThinking: false,
+      innerMonologue,
+      searchResults,
+    }
+    response = await Promise.race([
+      generateAgentResponse(agentForLLM, speechContext as Parameters<typeof generateAgentResponse>[1], workspaceId, provider),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: fala demorou mais de 90s.')), LLM_TIMEOUT_MS)
       ),
     ])
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Erro desconhecido na chamada LLM'
-    console.error(`Erro LLM (agente: ${nextAgent.agent_name}):`, msg)
+    const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+    console.error(`Erro no pipeline (agente: ${nextAgent.agent_name}):`, msg)
     throw new Error(msg)
   }
 
@@ -235,48 +284,7 @@ export async function runDebateTurn(
     throw new Error('A IA retornou uma resposta vazia. Tente novamente.')
   }
 
-  // 7. Validar densidade — se baixa, re-chamar com prompt de correção (1 retry)
-  const density = validateResponseDensity(response)
-  if (!density.ok) {
-    console.warn(`Baixa densidade (${nextAgent.agent_name}): ${density.reason}. Re-chamando...`)
-    try {
-      const retryContext = {
-        ...context,
-        transcriptHistory: history + `\n\n${nextAgent.agent_name}: ${response}\n\n[SISTEMA: Resposta rejeitada — ${density.reason} Refaça com ENTREGA concreta em bullets.]`,
-      }
-      const retry = await Promise.race([
-        generateAgentResponse(agentForLLM, retryContext, workspaceId, provider),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout retry')), LLM_TIMEOUT_MS)),
-      ])
-      if (retry && retry.trim().length > 0) {
-        response = retry
-      }
-    } catch (err: unknown) {
-      console.warn('Erro ignorado (retry LLM):', err instanceof Error ? err.message : err)
-    }
-  }
-
-  // 8. Web search
-  if (response.includes('[pesquisar:')) {
-    const match = response.match(/\[pesquisar:([^\]]+)\]/i)
-    if (match) {
-      const searchQuery = match[1].trim()
-      try {
-        const searchResults = await webSearch(searchQuery, workspaceId)
-        if (searchResults) {
-          response += `\n\n[Pesquisa: ${searchResults.slice(0, 400)}]`
-          await saveAgentMemory(nextAgent.agent_id, `Pesquisa: ${searchQuery}`, {
-            sessionId: meetingId, importance: 0.7,
-          })
-        }
-      } catch (searchError) {
-        console.warn(`[PESQUISA] Falha na busca web para "${searchQuery}":`, searchError)
-        response += '\n\n[Nota: A pesquisa web não pôde ser realizada neste momento.]'
-      }
-    }
-  }
-
-  // 9. Salvar transcript (com lock para evitar race condition em sequence_number)
+  // 7. Salvar transcript (lock para evitar race condition em sequence_number)
   const client = await pool.connect()
   let insertRes: { rows: { id: string; sequence_number: number; speaker_name: string; speaker_id: string; content: string }[] }
   try {
