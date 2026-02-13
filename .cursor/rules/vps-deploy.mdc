@@ -16,7 +16,10 @@ alwaysApply: true
   - Password: definida no `.env.vps`
 
 ## Como fazer deploy
-Executar: `powershell -ExecutionPolicy Bypass -File deploy.ps1`
+- **Manual (PC):** `$env:VPS_HOST="root@187.77.32.67"; .\deploy.ps1`
+- **Via GitHub (push em master):** o workflow `.github/workflows/deploy.yml` faz o deploy automático. Configurar no repositório (Settings → Secrets and variables → Actions):
+  - **Variables:** `VPS_HOST` = `root@187.77.32.67`, `POSTGRES_USER` = `A39bokKZClHrBqXC`, `POSTGRES_DB` = `MHL6sIvZvAqZsACp`
+  - **Secrets:** `SSH_PRIVATE_KEY` = conteúdo da chave privada SSH (a mesma que permite `ssh root@187.77.32.67` sem senha). Nunca commitar a chave no repo.
 
 ## Como testar na VPS
 NUNCA enviar JSON via SSH + PowerShell com aspas duplas. Sempre usar:

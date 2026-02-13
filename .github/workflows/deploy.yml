@@ -1,6 +1,7 @@
 # Deploy Sala de Reunião para VPS ao fazer push na branch master
-# Secrets necessários no repositório: VPS_HOST, SSH_PRIVATE_KEY
-# Opcional (para atualizar agentes no banco): POSTGRES_USER, POSTGRES_DB
+# Variáveis (Settings → Actions → Variables): VPS_HOST, POSTGRES_USER, POSTGRES_DB
+# Secret (Settings → Actions → Secrets): SSH_PRIVATE_KEY
+# Valores padrão desta VPS: ver .cursor/rules/vps-deploy.mdc
 
 name: Deploy to VPS
 
@@ -16,15 +17,19 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar SSH
+        env:
+          VPS_HOST: ${{ vars.VPS_HOST || secrets.VPS_HOST }}
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+          # ssh-keyscan usa só o host (ex: 187.77.32.67)
+          HOST="${VPS_HOST#*@}"
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Enviar arquivos para VPS
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_HOST: ${{ vars.VPS_HOST || secrets.VPS_HOST }}
           REMOTE_DIR: /opt/salareuniao
         run: |
           # Arquivos raiz
@@ -41,26 +46,26 @@ jobs:
 
       - name: Build e subir containers
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_HOST: ${{ vars.VPS_HOST || secrets.VPS_HOST }}
           REMOTE_DIR: /opt/salareuniao
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_HOST }} \
             "cd ${REMOTE_DIR} && docker compose down 2>/dev/null; docker compose up -d --build"
 
       - name: Atualizar seed dos agentes (opcional)
-        if: ${{ secrets.POSTGRES_USER != '' && secrets.POSTGRES_DB != '' }}
+        if: ${{ vars.POSTGRES_USER != '' && vars.POSTGRES_DB != '' }}
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_HOST: ${{ vars.VPS_HOST || secrets.VPS_HOST }}
           REMOTE_DIR: /opt/salareuniao
-          DB_USER: ${{ secrets.POSTGRES_USER }}
-          DB_NAME: ${{ secrets.POSTGRES_DB }}
+          DB_USER: ${{ vars.POSTGRES_USER }}
+          DB_NAME: ${{ vars.POSTGRES_DB }}
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.VPS_HOST }} \
             "cd ${REMOTE_DIR} && sleep 5 && cat server/seed-agents.sql | docker compose exec -T postgres psql -U ${DB_USER} -d ${DB_NAME} -f - 2>/dev/null || true"
 
       - name: Health check
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_HOST: ${{ vars.VPS_HOST || secrets.VPS_HOST }}
         run: |
           sleep 15
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.VPS_HOST }} \
