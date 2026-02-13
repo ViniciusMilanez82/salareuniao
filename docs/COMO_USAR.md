@@ -84,7 +84,7 @@ Sistema de **sessões de debate** com agentes de IA: você cria reuniões, escol
 ## 6. Deploy (VPS)
 
 - Use o `deploy.ps1` com `.env.vps` configurado (Postgres, `JWT_SECRET`, `CORS_ORIGIN`).
-- Após o deploy, acesse pela URL da VPS (ex.: `http://187.77.32.67`).
+- Após o deploy, acesse pela URL da VPS (ex.: `http://<SEU_IP_VPS>`).
 - Credenciais de teste (se configuradas no seed): ex. `admin@salareuniao.local` / `password` — **troque em produção**.
 
 ---

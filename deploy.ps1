@@ -60,7 +60,7 @@ Start-Sleep -Seconds 10
 $health = ssh $VPS "curl -s http://localhost/api/health"
 Write-Host $health
 if ($health -match "ok|connected") {
-    Write-Host "`nDeploy concluido. Acesse: http://187.77.32.67" -ForegroundColor Green
+    Write-Host "`nDeploy concluido. Acesse a URL do seu servidor (ex: http://<SEU_IP_VPS>)" -ForegroundColor Green
 } else {
     Write-Host "`nAtencao: health nao retornou ok. Verifique: ssh $VPS 'cd $REMOTE_DIR && docker compose logs -f app'" -ForegroundColor Yellow
 }
