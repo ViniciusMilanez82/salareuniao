@@ -9,6 +9,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { ROUTES } from '@/config/routes'
 import { MEETING_STATUS, MEETING_TYPES } from '@/config/constants'
 import type { MeetingStatus, MeetingType } from '@/types/database.types'
+import { SkeletonRow } from '@/components/ui/Skeleton'
 import {
   Plus, Search, Calendar, Clock, Bot,
   Play, MoreVertical, ArrowRight
@@ -101,7 +102,9 @@ export default function SessionsListPage() {
       {/* Sessions List */}
       <div className="space-y-3">
         {loading ? (
-          <div className="text-center py-12 text-gray-500">Carregando sessões...</div>
+          <>
+            {[1, 2, 3, 4, 5].map((i) => <SkeletonRow key={i} />)}
+          </>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             Nenhuma sessão encontrada.{' '}

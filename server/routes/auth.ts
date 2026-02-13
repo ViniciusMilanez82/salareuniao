@@ -223,6 +223,33 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 })
 
+// PUT /api/auth/profile — atualiza nome, company, job_title, avatar_url (RF-CLEAN-003)
+router.put('/profile', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, company, job_title, avatar_url } = req.body
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Nome é obrigatório' })
+    }
+    const trimmedName = name.trim().slice(0, 150)
+    const trimmedCompany = company != null ? String(company).trim().slice(0, 200) : null
+    const trimmedJobTitle = job_title != null ? String(job_title).trim().slice(0, 150) : null
+    const trimmedAvatar = avatar_url != null ? String(avatar_url).trim().slice(0, 2000) : null
+
+    await query(
+      `UPDATE users SET name = $1, company = $2, job_title = $3, avatar_url = $4, updated_at = NOW() WHERE id = $5`,
+      [trimmedName, trimmedCompany, trimmedJobTitle, trimmedAvatar || null, req.user!.id]
+    )
+    const result = await query(
+      'SELECT id, email, name, company, job_title, avatar_url, timezone, locale FROM users WHERE id = $1',
+      [req.user!.id]
+    )
+    return res.json(result.rows[0])
+  } catch (err: any) {
+    console.error('Erro ao atualizar perfil:', err)
+    return res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
 // PUT /api/auth/password
 router.put('/password', authMiddleware, async (req: AuthRequest, res: Response) => {
   try {

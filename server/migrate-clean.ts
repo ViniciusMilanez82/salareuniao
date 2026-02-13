@@ -72,6 +72,19 @@ async function migrate() {
       }
     }
 
+    // Migração 00003 - transcript_feedback (like/dislike)
+    const migration3Path = path.join(process.cwd(), 'supabase', 'migrations', '00003_transcript_feedback.sql')
+    if (fs.existsSync(migration3Path)) {
+      try {
+        const sql3 = fs.readFileSync(migration3Path, 'utf-8')
+        await client.query(sql3)
+        console.log('✅ Migração 00003 (transcript_feedback) aplicada')
+      } catch (e3: any) {
+        if (e3?.message?.includes('already exists')) console.log('   (transcript_feedback já existe)')
+        else throw e3
+      }
+    }
+
     console.log('✅ Migração concluída!\n')
 
     // Verificar tabelas

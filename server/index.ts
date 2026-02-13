@@ -18,7 +18,8 @@ if (isProd) {
   }
 }
 
-import { testConnection, pool } from './db.js'
+import { testConnection, pool, query } from './db.js'
+import { verifyToken, canAccessWorkspace } from './middleware/auth.js'
 
 // Routes
 import authRoutes from './routes/auth.js'
@@ -38,10 +39,13 @@ const PORT = parseInt(process.env.PORT || '3001')
 // Trust proxy (Nginx na frente) — necessário para rate-limit funcionar
 app.set('trust proxy', 1)
 
-// Middleware
+// Middleware — RS-003: em produção CORS restritivo (sem *)
+if (isProd && !process.env.CORS_ORIGIN) {
+  console.warn('⚠️ CORS_ORIGIN não definido em produção. Defina com o domínio do frontend (ex: http://187.77.32.67).')
+}
 app.use(cors({
   origin: isProd
-    ? (process.env.CORS_ORIGIN || '*')
+    ? (process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((o: string) => o.trim()).filter(Boolean) : ['http://localhost:5173'])
     : ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
 }))
@@ -109,13 +113,36 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // HTTP server (para anexar Socket.IO)
 const server = http.createServer(app)
 
-// Socket.IO — tempo real por sala de reunião (PRD RF-WS-001, RF-WS-002)
+// Socket.IO — tempo real por sala de reunião; RS-006: auth JWT
 const io = new SocketIOServer(server, {
   path: '/socket.io',
   cors: {
-    origin: isProd ? (process.env.CORS_ORIGIN || '*') : ['http://localhost:5173', 'http://localhost:3000'],
+    origin: isProd
+      ? (process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((o: string) => o.trim()).filter(Boolean) : ['http://localhost:5173'])
+      : ['http://localhost:5173', 'http://localhost:3000'],
     credentials: true,
   },
+})
+io.use(async (socket, next) => {
+  const token = (socket.handshake.auth?.token as string) || (socket.handshake.query?.token as string)
+  const room = socket.handshake.query.room as string
+  if (!token) {
+    return next(new Error('Token não fornecido'))
+  }
+  if (!room) {
+    return next(new Error('Sala (room) não informada'))
+  }
+  try {
+    const decoded = verifyToken(token)
+    const meeting = await query('SELECT workspace_id FROM meetings WHERE id = $1', [room])
+    if (meeting.rows.length === 0) return next(new Error('Reunião não encontrada'))
+    const allowed = await canAccessWorkspace(meeting.rows[0].workspace_id, decoded.id)
+    if (!allowed) return next(new Error('Sem acesso a esta reunião'))
+    ;(socket as any).userId = decoded.id
+    next()
+  } catch (err) {
+    next(new Error('Token inválido ou expirado'))
+  }
 })
 io.on('connection', (socket) => {
   const room = socket.handshake.query.room as string

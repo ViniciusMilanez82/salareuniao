@@ -39,6 +39,9 @@ import DealsPage from '@/app/routes/deals/index'
 // Settings
 import SettingsPage from '@/app/routes/settings/index'
 
+// 404
+import NotFoundPage from '@/app/routes/NotFoundPage'
+
 // Admin
 import AdminUsersPage from '@/app/routes/admin/users'
 import AdminIntegrationsPage from '@/app/routes/admin/integrations'
@@ -180,7 +183,7 @@ export default function App() {
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
   )

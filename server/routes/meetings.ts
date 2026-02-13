@@ -1,4 +1,5 @@
 import { Router, Response } from 'express'
+import rateLimit from 'express-rate-limit'
 import { query } from '../db.js'
 import { authMiddleware, AuthRequest, canAccessWorkspace } from '../middleware/auth.js'
 import { validateUuidParam } from '../middleware/validateUuid.js'
@@ -6,6 +7,16 @@ import { emitToMeeting } from '../socket.js'
 
 const router = Router()
 router.use(authMiddleware)
+
+// RS-004: rate limit em rotas que consomem LLM (10 req/min por usuário)
+const runTurnLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => (req as AuthRequest).user?.id ?? (req as any).ip ?? 'anon',
+  message: { error: 'Muitas requisições ao debate. Aguarde 1 minuto.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 router.param('id', validateUuidParam)
 router.param('agentId', validateUuidParam)
 
@@ -356,7 +367,7 @@ router.post('/:id/transcripts', async (req: AuthRequest, res: Response) => {
 })
 
 // POST /api/meetings/:id/run-turn - Executa um turno do debate (LLM)
-router.post('/:id/run-turn', async (req: AuthRequest, res: Response) => {
+router.post('/:id/run-turn', runTurnLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const meetingId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
     const meeting = await query('SELECT workspace_id FROM meetings WHERE id = $1', [meetingId])
@@ -372,6 +383,58 @@ router.post('/:id/run-turn', async (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     console.error('Erro run-turn:', err)
     return res.status(500).json({ error: 'Erro ao executar turno do debate' })
+  }
+})
+
+// GET /api/meetings/:id/feedback — feedback like/dislike do usuário na reunião (RF-GAME-003)
+router.get('/:id/feedback', async (req: AuthRequest, res: Response) => {
+  try {
+    const meetingId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
+    const meeting = await query('SELECT workspace_id FROM meetings WHERE id = $1', [meetingId])
+    if (meeting.rows.length === 0) return res.status(404).json({ error: 'Reunião não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meeting.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
+    const fb = await query(
+      `SELECT tf.transcript_id, tf.rating FROM transcript_feedback tf
+       JOIN transcripts t ON t.id = tf.transcript_id AND t.meeting_id = $1
+       WHERE tf.user_id = $2`,
+      [meetingId, req.user.id]
+    )
+    const map: Record<string, number> = {}
+    for (const row of fb.rows) {
+      map[row.transcript_id] = row.rating
+    }
+    return res.json(map)
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro interno' })
+  }
+})
+
+// POST /api/meetings/:id/transcripts/:transcriptId/feedback — like/dislike (RF-GAME-003)
+router.post('/:id/transcripts/:transcriptId/feedback', async (req: AuthRequest, res: Response) => {
+  try {
+    const meetingId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
+    const transcriptId = typeof req.params.transcriptId === 'string' ? req.params.transcriptId : req.params.transcriptId?.[0]
+    if (!transcriptId || !/^[0-9a-f-]{36}$/i.test(transcriptId)) return res.status(400).json({ error: 'transcriptId inválido' })
+    const { rating } = req.body
+    if (rating !== 1 && rating !== -1) return res.status(400).json({ error: 'rating deve ser 1 (like) ou -1 (dislike)' })
+    const meeting = await query('SELECT workspace_id FROM meetings WHERE id = $1', [meetingId])
+    if (meeting.rows.length === 0) return res.status(404).json({ error: 'Reunião não encontrada' })
+    if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
+    const allowed = await canAccessWorkspace(meeting.rows[0].workspace_id, req.user.id)
+    if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })
+    const t = await query('SELECT id FROM transcripts WHERE id = $1 AND meeting_id = $2', [transcriptId, meetingId])
+    if (t.rows.length === 0) return res.status(404).json({ error: 'Transcrição não encontrada' })
+    await query(
+      `INSERT INTO transcript_feedback (transcript_id, user_id, rating)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (transcript_id, user_id) DO UPDATE SET rating = EXCLUDED.rating`,
+      [transcriptId, req.user.id, rating]
+    )
+    return res.json({ transcript_id: transcriptId, rating })
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Erro interno' })
   }
 })
 

@@ -84,6 +84,7 @@ export function Sidebar() {
             key={to}
             to={to}
             title={collapsed ? `${label} — ${tooltip}` : tooltip}
+            aria-label={label}
             className={({ isActive }) =>
               cn(
                 'sidebar-item group relative',
@@ -114,6 +115,7 @@ export function Sidebar() {
                 key={to}
                 to={to}
                 title={collapsed ? `${label} — ${tooltip}` : tooltip}
+                aria-label={label}
                 className={({ isActive }) =>
                   cn(
                     'sidebar-item group relative',
@@ -142,6 +144,7 @@ export function Sidebar() {
             key={to}
             to={to}
             title={collapsed ? `${label} — ${tooltip}` : tooltip}
+            aria-label={label}
             className={({ isActive }) =>
               cn(
                 'sidebar-item group relative',

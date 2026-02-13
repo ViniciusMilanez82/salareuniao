@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { ROUTES } from '@/config/routes'
 import { fetchMeetings } from '@/lib/api/meetings'
 import { fetchAgents } from '@/lib/api/agents'
+import { SkeletonCard } from '@/components/ui/Skeleton'
 import {
   Calendar, Bot, TrendingUp, Clock, Plus, ArrowRight,
   MessageSquare, Zap, BarChart3, Lightbulb, HelpCircle, Sparkles
@@ -149,7 +150,9 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? (
-          <div className="col-span-full text-center py-8 text-gray-500">Carregando...</div>
+          <>
+            {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
+          </>
         ) : (
           stats.map((stat) => (
             <Card key={stat.label} interactive>

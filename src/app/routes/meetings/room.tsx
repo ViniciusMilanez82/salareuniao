@@ -4,14 +4,14 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ROUTES } from '@/config/routes'
-import { fetchMeeting, runMeetingTurn, endMeeting, addTranscript } from '@/lib/api/meetings'
+import { fetchMeeting, runMeetingTurn, endMeeting, addTranscript, getMeetingFeedback, setTranscriptFeedback } from '@/lib/api/meetings'
 import { connectMeetingRoom, disconnectMeetingRoom } from '@/lib/supabase/realtime'
 import { useAuthStore } from '@/stores/useAuthStore'
 import {
   Play, Pause, Square, MessageSquare, ChevronRight, ArrowLeft,
   SkipForward, Users, FileText, Download, Send, Mic, MicOff, User,
   Maximize, Minimize, Zap, HelpCircle, Info, Settings2, Loader2,
-  Volume2, VolumeX
+  Volume2, VolumeX, ThumbsUp, ThumbsDown
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -222,6 +222,8 @@ export default function MeetingRoomPage() {
   const [lastSpeaker, setLastSpeaker] = useState<string | null>(null)
   const [showHelp, setShowHelp] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, number>>({})
+  const [socketReconnecting, setSocketReconnecting] = useState(false)
   const transcriptEndRef = useRef<HTMLDivElement>(null)
 
   // === CHAT HUMANO ===
@@ -380,7 +382,8 @@ export default function MeetingRoomPage() {
       .catch(() => toast.error('Erro ao carregar sessão'))
       .finally(() => setLoading(false))
 
-    // Conectar WebSocket
+    getMeetingFeedback(id).then(setFeedbackMap).catch(() => {})
+
     try {
       connectMeetingRoom(id, {
         onTranscript: (data: any) => {
@@ -389,7 +392,6 @@ export default function MeetingRoomPage() {
             if (exists) return prev
             return [...prev, data]
           })
-          // TTS — fora do state updater
           ttsRef.current?.enqueue(data.speaker_name, data.content)
           setLastSpeaker(data.speaker_name)
           scrollToBottom()
@@ -405,7 +407,10 @@ export default function MeetingRoomPage() {
           }
         },
         onAgentStatus: () => {},
+        onDisconnect: () => setSocketReconnecting(true),
+        onReconnect: () => setSocketReconnecting(false),
       })
+      setSocketReconnecting(false)
     } catch {
       console.log('WebSocket não disponível, usando polling')
     }
@@ -459,10 +464,12 @@ export default function MeetingRoomPage() {
       return true
     } catch (err: any) {
       const msg = err?.message || ''
-      if (msg.includes('API key')) {
+      if (msg.includes('API key') || msg.includes('não configurada')) {
         toast.error('API da OpenAI não configurada. Vá em Admin > Integrações para configurar.')
+      } else if (msg.includes('429') || msg.includes('Muitas requisições')) {
+        toast.error('Muitas requisições. Aguarde um minuto e tente novamente.')
       } else {
-        toast.error(msg || 'Erro ao executar turno')
+        toast.error('Nossos agentes estão temporariamente indisponíveis. Tente novamente em instantes.')
       }
       return false
     } finally {
@@ -612,12 +619,21 @@ export default function MeetingRoomPage() {
   return (
     <div className="h-screen bg-surface-dark flex flex-col">
       {/* Top Bar */}
+      {/* Banner reconectando Socket */}
+      {socketReconnecting && (
+        <div className="bg-amber-900/80 border-b border-amber-700 px-4 py-2 text-body-sm text-amber-100 flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
+          Reconectando...
+        </div>
+      )}
+
       <div className="h-14 bg-surface-dark-alt border-b border-border-dark px-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(ROUTES.MEETINGS)}
             className="text-gray-400 hover:text-white transition-colors"
             title="Voltar para lista de sessões"
+            aria-label="Voltar para lista de sessões"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -648,6 +664,7 @@ export default function MeetingRoomPage() {
             onClick={() => setShowHelp(!showHelp)}
             className="btn-icon text-gray-400 hover:text-white"
             title="Como funciona"
+            aria-label="Como funciona"
           >
             <HelpCircle className="w-4 h-4" />
           </button>
@@ -655,6 +672,7 @@ export default function MeetingRoomPage() {
             onClick={() => setShowSettings(!showSettings)}
             className="btn-icon text-gray-400 hover:text-white"
             title="Configurações do auto-debate"
+            aria-label="Configurações do auto-debate"
           >
             <Settings2 className="w-4 h-4" />
           </button>
@@ -662,6 +680,7 @@ export default function MeetingRoomPage() {
             onClick={toggleVoice}
             className={`btn-icon transition-colors ${voiceEnabled ? 'text-secondary-400 hover:text-secondary-300' : 'text-gray-400 hover:text-white'}`}
             title={voiceEnabled ? 'Desligar voz (TTS está ativo)' : 'Ligar voz (os agentes falarão em voz alta)'}
+            aria-label={voiceEnabled ? 'Desligar voz' : 'Ligar voz'}
           >
             {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
@@ -669,6 +688,7 @@ export default function MeetingRoomPage() {
             onClick={handleExportTranscript}
             className="btn-icon text-gray-400 hover:text-white"
             title="Exportar transcrição"
+            aria-label="Exportar transcrição"
           >
             <Download className="w-4 h-4" />
           </button>
@@ -676,6 +696,7 @@ export default function MeetingRoomPage() {
             onClick={() => setShowTranscript(!showTranscript)}
             className="btn-icon text-gray-400 hover:text-white"
             title={showTranscript ? 'Esconder transcrição' : 'Mostrar transcrição'}
+            aria-label={showTranscript ? 'Esconder transcrição' : 'Mostrar transcrição'}
           >
             {showTranscript ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
           </button>
@@ -821,6 +842,13 @@ export default function MeetingRoomPage() {
                 transcripts.map((t, idx) => {
                   const isHuman = t.speaker_type === 'human'
                   const isLast = idx === transcripts.length - 1
+                  const myRating = t.id ? feedbackMap[t.id] : undefined
+                  const handleFeedback = (rating: 1 | -1) => {
+                    if (!id || !t.id) return
+                    setTranscriptFeedback(id, t.id, rating)
+                      .then(() => setFeedbackMap((prev) => ({ ...prev, [t.id!]: rating })))
+                      .catch(() => toast.error('Erro ao enviar feedback'))
+                  }
                   return (
                     <div
                       key={t.id || idx}
@@ -843,6 +871,26 @@ export default function MeetingRoomPage() {
                           {isHuman && <span className="ml-1 text-blue-400/60">(você)</span>}
                         </span>
                         <span className="text-body-xs text-gray-600">#{t.sequence_number}</span>
+                        {!isHuman && t.id && (
+                          <span className="ml-auto flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleFeedback(1)}
+                              className={`p-1 rounded ${myRating === 1 ? 'text-primary-400 bg-primary-900/30' : 'text-gray-500 hover:text-gray-300'}`}
+                              aria-label="Curtir esta fala"
+                            >
+                              <ThumbsUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleFeedback(-1)}
+                              className={`p-1 rounded ${myRating === -1 ? 'text-red-400 bg-red-900/30' : 'text-gray-500 hover:text-gray-300'}`}
+                              aria-label="Não curtir esta fala"
+                            >
+                              <ThumbsDown className="w-3.5 h-3.5" />
+                            </button>
+                          </span>
+                        )}
                       </div>
                       <p className="text-body-sm text-gray-300 whitespace-pre-wrap leading-relaxed">{t.content}</p>
                     </div>

@@ -43,10 +43,12 @@ export default function SettingsPage() {
     }
     setSavingProfile(true)
     try {
-      // Nota: endpoint de update profile não existe no backend atual
-      // Simulando sucesso — implementar PUT /api/auth/profile no backend
-      toast.success('Perfil salvo! (funcionalidade de backend em desenvolvimento)')
-      setUser({ ...user!, name: profileName, company: profileCompany, job_title: profileJobTitle })
+      const updated = await apiPut<{ id: string; email: string; name: string; company: string | null; job_title: string | null; avatar_url: string | null }>(
+        '/auth/profile',
+        { name: profileName.trim(), company: profileCompany.trim() || null, job_title: profileJobTitle.trim() || null }
+      )
+      setUser({ ...user!, name: updated.name, company: updated.company ?? '', job_title: updated.job_title ?? '' })
+      toast.success('Perfil salvo!')
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Erro ao salvar')
     } finally {

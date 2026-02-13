@@ -1,8 +1,8 @@
 /**
- * Tempo real via Socket.IO (PRD 4.4.1 — RF-WS-001/002).
- * Conecta à sala da reunião e escuta eventos: transcript, agent_status, meeting_status.
+ * Tempo real via Socket.IO (PRD 4.4.1 — RF-WS-001/002). RS-006: auth com JWT.
  */
 import { io, Socket } from 'socket.io-client'
+import { getToken } from '@/lib/api/client'
 
 function getSocketBaseUrl(): string {
   const wsUrl = import.meta.env.VITE_WS_URL as string | undefined
@@ -19,10 +19,14 @@ export function connectMeetingRoom(roomId: string, callbacks: {
   onTranscript?: (data: unknown) => void
   onAgentStatus?: (data: unknown) => void
   onMeetingStatus?: (data: unknown) => void
+  onDisconnect?: () => void
+  onReconnect?: () => void
 }) {
+  const token = getToken()
   socket = io(getSocketBaseUrl(), {
     path: '/socket.io',
     query: { room: roomId },
+    auth: { token: token || '' },
     transports: ['websocket', 'polling'],
   })
 
@@ -35,8 +39,16 @@ export function connectMeetingRoom(roomId: string, callbacks: {
   socket.on('meeting_status', (data: unknown) => {
     callbacks.onMeetingStatus?.(data)
   })
-  socket.on('connect_error', () => {
-    console.warn('Socket.IO: falha ao conectar, usando polling HTTP')
+  socket.on('connect_error', (err) => {
+    console.warn('Socket.IO: falha ao conectar', err.message)
+    callbacks.onDisconnect?.()
+  })
+  socket.on('disconnect', (reason) => {
+    if (reason === 'io server disconnect' || reason === 'io client disconnect') return
+    callbacks.onDisconnect?.()
+  })
+  socket.io.on('reconnect', () => {
+    callbacks.onReconnect?.()
   })
 
   return socket

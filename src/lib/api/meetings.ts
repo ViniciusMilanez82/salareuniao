@@ -65,3 +65,15 @@ export async function addTranscript(meetingId: string, transcript: Partial<Trans
 export async function fetchActionItems(meetingId: string) {
   return apiGet<ActionItem[]>(`/meetings/${meetingId}/action_items`)
 }
+
+/** Mapa transcript_id -> rating (1 like, -1 dislike) do usuário atual */
+export async function getMeetingFeedback(meetingId: string) {
+  return apiGet<Record<string, number>>(`/meetings/${meetingId}/feedback`)
+}
+
+export async function setTranscriptFeedback(meetingId: string, transcriptId: string, rating: 1 | -1) {
+  return apiPost<{ transcript_id: string; rating: number }>(
+    `/meetings/${meetingId}/transcripts/${transcriptId}/feedback`,
+    { rating }
+  )
+}
