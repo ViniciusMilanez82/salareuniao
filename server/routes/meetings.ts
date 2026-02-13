@@ -243,7 +243,8 @@ router.post('/:id/resume', async (req: AuthRequest, res: Response) => {
 // POST /api/meetings/:id/end
 router.post('/:id/end', async (req: AuthRequest, res: Response) => {
   try {
-    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    const meetingId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [meetingId])
     if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
     if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
     const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
@@ -251,9 +252,9 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
     const { summary } = req.body
     const result = await query(
       `UPDATE meetings SET status = 'completed', actual_end = NOW(), summary = $2 WHERE id = $1 RETURNING *`,
-      [req.params.id, summary || null]
+      [meetingId, summary || null]
     )
-    emitToMeeting(req.params.id, 'meeting_status', { status: 'completed' })
+    emitToMeeting(meetingId, 'meeting_status', { status: 'completed' })
     return res.json(result.rows[0])
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro interno' })
@@ -319,7 +320,8 @@ router.get('/:id/transcripts', async (req: AuthRequest, res: Response) => {
 // POST /api/meetings/:id/transcripts
 router.post('/:id/transcripts', async (req: AuthRequest, res: Response) => {
   try {
-    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [req.params.id])
+    const meetingId = typeof req.params.id === 'string' ? req.params.id : req.params.id[0]
+    const meetingRow = await query('SELECT workspace_id FROM meetings WHERE id = $1', [meetingId])
     if (meetingRow.rows.length === 0) return res.status(404).json({ error: 'Sessão não encontrada' })
     if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
     const allowed = await canAccessWorkspace(meetingRow.rows[0].workspace_id, req.user.id)
@@ -329,17 +331,17 @@ router.post('/:id/transcripts', async (req: AuthRequest, res: Response) => {
     // Pegar o próximo sequence_number
     const seqRes = await query(
       'SELECT COALESCE(MAX(sequence_number), 0) + 1 as next_seq FROM transcripts WHERE meeting_id = $1',
-      [req.params.id]
+      [meetingId]
     )
 
     const result = await query(
       `INSERT INTO transcripts (meeting_id, sequence_number, speaker_type, speaker_id, speaker_name, content, content_type, timestamp_start, sentiment_score, topics)
        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9) RETURNING *`,
-      [req.params.id, seqRes.rows[0].next_seq, speaker_type, speaker_id || null,
+      [meetingId, seqRes.rows[0].next_seq, speaker_type, speaker_id || null,
        speaker_name, content, content_type || 'speech', sentiment_score || null, topics || []]
     )
     const row = result.rows[0]
-    emitToMeeting(req.params.id, 'transcript', {
+    emitToMeeting(meetingId, 'transcript', {
       id: row.id,
       sequence_number: row.sequence_number,
       speaker_name: row.speaker_name,
