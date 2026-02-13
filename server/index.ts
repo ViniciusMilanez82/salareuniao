@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
+import helmet from 'helmet'
 import { setIO } from './socket.js'
 
 dotenv.config()
@@ -40,6 +41,12 @@ const PORT = parseInt(process.env.PORT || '3001')
 
 // Trust proxy (Nginx na frente) — necessário para rate-limit funcionar
 app.set('trust proxy', 1)
+
+// Segurança: HTTP headers (Content-Security-Policy, X-Frame-Options, etc.)
+app.use(helmet({
+  contentSecurityPolicy: isProd ? undefined : false,
+  crossOriginEmbedderPolicy: false,
+}))
 
 // CORS: em produção já validado acima (exit se não definido)
 app.use(cors({

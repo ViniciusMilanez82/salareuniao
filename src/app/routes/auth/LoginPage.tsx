@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { signInWithEmail } from '@/lib/supabase/auth'
+import { signInWithEmail } from '@/lib/auth/auth'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { ROUTES } from '@/config/routes'
 

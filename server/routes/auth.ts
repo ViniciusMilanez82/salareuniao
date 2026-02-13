@@ -1,8 +1,27 @@
 import { Router, Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import rateLimit from 'express-rate-limit'
+import { z } from 'zod'
 import { query } from '../db.js'
 import { generateToken, authMiddleware, AuthRequest } from '../middleware/auth.js'
+import { validateRequest } from '../middleware/validateRequest.js'
+
+const registerSchema = z.object({
+  body: z.object({
+    email: z.string().email('Email inválido'),
+    password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
+    name: z.string().min(1, 'Nome é obrigatório'),
+    company: z.string().optional(),
+    job_title: z.string().optional(),
+  }),
+})
+
+const loginSchema = z.object({
+  body: z.object({
+    email: z.string().email('Email inválido'),
+    password: z.string().min(1, 'Senha é obrigatória'),
+  }),
+})
 
 const router = Router()
 
@@ -18,7 +37,7 @@ router.use('/login', authLimiter)
 router.use('/register', authLimiter)
 
 // POST /api/auth/register
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', validateRequest(registerSchema), async (req: Request, res: Response) => {
   try {
     const { email, password, name, company, job_title } = req.body
 
@@ -94,7 +113,7 @@ router.post('/register', async (req: Request, res: Response) => {
 })
 
 // POST /api/auth/login
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', validateRequest(loginSchema), async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body
 

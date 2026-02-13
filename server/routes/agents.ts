@@ -1,7 +1,37 @@
 import { Router, Response } from 'express'
+import rateLimit from 'express-rate-limit'
+import { z } from 'zod'
 import { query } from '../db.js'
 import { authMiddleware, AuthRequest, canAccessWorkspace } from '../middleware/auth.js'
 import { validateUuidParam } from '../middleware/validateUuid.js'
+import { validateRequest } from '../middleware/validateRequest.js'
+
+const createAgentSchema = z.object({
+  body: z.object({
+    workspace_id: z.string().uuid('workspace_id inválido'),
+    name: z.string().min(1, 'Nome é obrigatório').max(100),
+    role: z.string().min(1, 'Role é obrigatório').max(100),
+    system_prompt: z.string().min(10, 'System prompt deve ter pelo menos 10 caracteres').max(5000),
+    description: z.string().optional(),
+    avatar_url: z.string().url().optional().or(z.literal('')),
+    tags: z.array(z.string()).optional(),
+    expertise: z.array(z.string()).optional(),
+    personality_traits: z.record(z.unknown()).optional(),
+    behavior_settings: z.record(z.unknown()).optional(),
+    model_settings: z.record(z.unknown()).optional(),
+    voice_settings: z.record(z.unknown()).optional(),
+    visual_avatar: z.record(z.unknown()).optional(),
+    is_template: z.boolean().optional(),
+    is_public: z.boolean().optional(),
+  }),
+})
+
+const createAgentLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => (req as AuthRequest).user?.id ?? (req as { ip?: string }).ip ?? 'anon',
+  message: { error: 'Muitas criações de agentes. Aguarde 1 minuto.' },
+})
 
 const router = Router()
 router.use(authMiddleware)
@@ -63,7 +93,7 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 })
 
 // POST /api/agents
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', createAgentLimiter, validateRequest(createAgentSchema), async (req: AuthRequest, res: Response) => {
   try {
     const {
       workspace_id, name, description, role, expertise, system_prompt,

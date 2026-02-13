@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { resetPassword } from '@/lib/supabase/auth'
+import { resetPassword } from '@/lib/auth/auth'
 import { ROUTES } from '@/config/routes'
 import { ArrowLeft, Mail } from 'lucide-react'
 

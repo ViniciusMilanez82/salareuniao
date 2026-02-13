@@ -1,7 +1,9 @@
+> **IMPORTANTE:** Substitua `<SEU_IP_VPS>` pelo IP real da sua VPS e `<SEU_USUARIO>` pelo usuário SSH (evite usar `root`).
+
 # Deploy na VPS Hostinger
 
 **VPS:** `srv1353769.hstgr.cloud`  
-**IP:** `187.77.32.67`
+**IP:** `<SEU_IP_VPS>`
 
 ---
 
@@ -25,16 +27,16 @@ No **PowerShell** ou **Git Bash**, na pasta do projeto:
 
 ```powershell
 # Definir IP da VPS
-$VPS = "root@187.77.32.67"
+$env:VPS_HOST = "<SEU_USUARIO>@<SEU_IP_VPS>"
 
 # Criar pasta remota
-ssh $VPS "mkdir -p /opt/salareuniao"
+ssh $env:VPS_HOST "mkdir -p /opt/salareuniao"
 
 # Enviar arquivos (excluindo node_modules, .git, etc.)
-scp -r package.json package-lock.json tsconfig.json vite.config.ts index.html tailwind.config.js postcss.config.js src server supabase nginx docker-compose.yml Dockerfile .env.production deploy.sh $VPS:/opt/salareuniao/
+scp -r package.json package-lock.json tsconfig.json vite.config.ts index.html tailwind.config.js postcss.config.js src server supabase nginx docker-compose.yml Dockerfile .env.production deploy.sh $env:VPS_HOST:/opt/salareuniao/
 
 # Enviar .env da VPS
-scp .env.vps $VPS:/opt/salareuniao/.env
+scp .env.vps $env:VPS_HOST:/opt/salareuniao/.env
 ```
 
 Se pedir senha, use a **senha do root** que você definiu em **Configurações principais** (Alterar senha do root).  
@@ -47,7 +49,7 @@ Se estiver usando **chave SSH**, não pedirá senha.
 Conecte na VPS (use a chave SSH que está no hPanel em **Chaves SSH**):
 
 ```bash
-ssh root@187.77.32.67
+ssh <SEU_USUARIO>@<SEU_IP_VPS>
 ```
 
 Na VPS, rode:
@@ -78,16 +80,16 @@ curl -s http://localhost:3001/api/health
 1. **Enviar o projeto** (PowerShell na pasta do projeto):
 
 ```powershell
-$VPS = "root@187.77.32.67"
-ssh $VPS "mkdir -p /opt/salareuniao"
-scp -r package.json package-lock.json tsconfig.json vite.config.ts index.html tailwind.config.js postcss.config.js src server supabase nginx docker-compose.yml Dockerfile .env.production deploy.sh $VPS:/opt/salareuniao/
-scp .env.vps $VPS:/opt/salareuniao/.env
+$env:VPS_HOST = "<SEU_USUARIO>@<SEU_IP_VPS>"
+ssh $env:VPS_HOST "mkdir -p /opt/salareuniao"
+scp -r package.json package-lock.json tsconfig.json vite.config.ts index.html tailwind.config.js postcss.config.js src server supabase nginx docker-compose.yml Dockerfile .env.production deploy.sh $env:VPS_HOST:/opt/salareuniao/
+scp .env.vps $env:VPS_HOST:/opt/salareuniao/.env
 ```
 
 2. **Conectar e subir na VPS**:
 
 ```bash
-ssh root@187.77.32.67
+ssh <SEU_USUARIO>@<SEU_IP_VPS>
 cd /opt/salareuniao
 docker compose up -d
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt install -y nodejs
@@ -95,14 +97,14 @@ npm install && npm run migrate
 docker compose ps && curl -s http://localhost:3001/api/health
 ```
 
-Depois acesse: **http://187.77.32.67**
+Depois acesse: **http://<SEU_IP_VPS>**
 
 ---
 
 ## 4. Acessar o sistema
 
-- **Pelo IP:** http://187.77.32.67  
-- **Pela API:** http://187.77.32.67/api/health  
+- **Pelo IP:** http://<SEU_IP_VPS>  
+- **Pela API:** http://<SEU_IP_VPS>/api/health  
 
 O Nginx escuta na porta 80 e encaminha para o app.
 
@@ -131,4 +133,4 @@ docker compose build --no-cache app && docker compose up -d app
 ## Referência SSH
 
 - [Como gerar chaves SSH e adicioná-las ao hPanel](https://www.hostinger.com/support/5634532-how-to-generate-ssh-keys-and-add-them-to-hostinger-hpanel/)
-- Você já tem chaves em "Chaves SSH" (ex.: **multigest-deploy**); use a mesma chave no seu PC para `ssh root@187.77.32.67` sem senha.
+- Você já tem chaves em "Chaves SSH" (ex.: **multigest-deploy**); use a mesma chave no seu PC para `ssh <SEU_USUARIO>@<SEU_IP_VPS>` sem senha.

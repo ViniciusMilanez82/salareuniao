@@ -200,7 +200,7 @@ export async function runDebateTurn(
     name: nextAgent.agent_name,
     role: nextAgent.agent_role,
     system_prompt: sysPrompt,
-    model_settings: nextAgent.model_settings,
+    model_settings: nextAgent.model_settings ?? undefined,
     personality_traits: nextAgent.personality_traits ?? undefined,
     behavior_settings: nextAgent.behavior_settings ?? undefined,
   }

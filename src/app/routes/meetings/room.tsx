@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ROUTES } from '@/config/routes'
 import { fetchMeeting, runMeetingTurn, endMeeting, addTranscript, getMeetingFeedback, setTranscriptFeedback } from '@/lib/api/meetings'
-import { connectMeetingRoom, disconnectMeetingRoom } from '@/lib/supabase/realtime'
+import { connectMeetingRoom, disconnectMeetingRoom } from '@/lib/socket/realtime'
 import { useAuthStore } from '@/stores/useAuthStore'
 import {
   Play, Pause, Square, MessageSquare, ChevronRight, ArrowLeft,

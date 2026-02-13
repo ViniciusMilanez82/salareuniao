@@ -1,8 +1,9 @@
-# Deploy Sala de Reunião -> VPS Hostinger (187.77.32.67)
-# Execute na pasta do projeto: .\deploy.ps1
+# Deploy Sala de Reunião -> VPS
+# Execute na pasta do projeto: $env:VPS_HOST="user@ip"; .\deploy.ps1
 
 $ErrorActionPreference = "Stop"
-$VPS = "root@187.77.32.67"
+$VPS = $env:VPS_HOST
+if (-not $VPS) { throw "Defina a variável de ambiente VPS_HOST (ex: user@ip)" }
 $REMOTE_DIR = "/opt/salareuniao"
 
 # Credenciais do banco (lidas do .env.vps)
