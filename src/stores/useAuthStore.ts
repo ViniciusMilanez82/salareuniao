@@ -45,7 +45,13 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'sala-reuniao-auth',
-      partialize: (state) => ({ theme: state.theme }),
+      partialize: (state) => ({
+        theme: state.theme,
+        user: state.user,
+        workspace: state.workspace,
+        membership: state.membership,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
   )
 )

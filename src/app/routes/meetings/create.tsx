@@ -21,14 +21,42 @@ const iconMap: Record<string, React.ElementType> = {
   MessageSquare, Lightbulb, BarChart3, Target, ClipboardCheck, Handshake, Settings,
 }
 
-const typeDescriptions: Record<string, string> = {
-  debate: 'Agentes debatem o tema apresentando prós e contras',
-  brainstorm: 'Geração livre de ideias criativas sobre o tópico',
-  analysis: 'Análise profunda e estruturada de dados e cenários',
-  strategy: 'Planejamento estratégico com diferentes perspectivas',
-  review: 'Revisão crítica de documentos, planos ou propostas',
-  negotiation: 'Simulação de negociação entre partes',
-  custom: 'Formato personalizado — você define as regras',
+const typeDescriptions: Record<string, { short: string; output: string; stops: string }> = {
+  debate: {
+    short: 'Decidir entre opções com prós, contras e trade-offs',
+    output: '2-3 opções comparadas + decisão + plano de ação',
+    stops: 'Quando houver decisão registrada ou teste agendado',
+  },
+  brainstorm: {
+    short: 'Gerar ideias e convergir nas melhores',
+    output: 'Top 10 ideias → Top 3 com score → plano 7 dias',
+    stops: 'Quando houver Top 3 com critérios + 1 experimento',
+  },
+  analysis: {
+    short: 'Análise profunda com plano executável',
+    output: 'Escopo IN/OUT + tarefas + marcos + riscos',
+    stops: 'Quando existir lista de tarefas com donos e prazos',
+  },
+  strategy: {
+    short: 'Planejamento estratégico com decisão clara',
+    output: 'Análise situacional + opções + decisão + plano 30 dias',
+    stops: 'Quando houver estratégia escolhida + próximos passos',
+  },
+  review: {
+    short: 'Revisão crítica com recomendações priorizadas',
+    output: 'Diagnóstico + recomendações + plano de ação',
+    stops: 'Quando houver melhorias priorizadas com donos',
+  },
+  negotiation: {
+    short: 'Preparar estratégia de negociação real',
+    output: 'BATNA/ZOPA + âncora + concessões + roteiro',
+    stops: 'Quando houver roteiro e linhas vermelhas claras',
+  },
+  custom: {
+    short: 'Formato livre — você define as regras',
+    output: 'Definido pelos seus objetivos',
+    stops: 'Quando os objetivos forem atingidos',
+  },
 }
 
 const paramDescriptions: Record<string, { low: string; high: string; desc: string }> = {
@@ -51,6 +79,7 @@ export default function MeetingCreatePage() {
   const [selectedAgents, setSelectedAgents] = useState<string[]>([])
   const [availableAgents, setAvailableAgents] = useState<AgentOption[]>([])
   const [params, setParams] = useState({ formality: 7, pace: 5, depth: 7, creativity: 5 })
+  const [objectives, setObjectives] = useState('')
 
   useEffect(() => {
     if (workspace?.id) {
@@ -122,31 +151,43 @@ export default function MeetingCreatePage() {
         ))}
       </div>
 
-      {/* Step 1: Info */}
+      {/* Step 1: Info + Brief */}
       {step === 1 && (
         <Card>
-          <CardTitle>Sobre o que será o debate?</CardTitle>
+          <CardTitle>Sobre o que será a sessão?</CardTitle>
           <p className="text-body-sm text-gray-500 mt-1">
-            Dê um título e descreva o tema que os agentes de IA vão discutir
+            Quanto mais contexto, mais produtivos serão os agentes. Preencha o brief.
           </p>
           <div className="mt-4 space-y-4">
             <Input
               label="Título da sessão *"
-              placeholder="Ex: Análise de impacto da fusão ABC"
+              placeholder="Ex: Definir produto para módulos habitacionais"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               autoFocus
             />
             <div>
-              <label className="label">Tópico / Pergunta Central</label>
+              <label className="label">Contexto e Restrições (brief)</label>
               <textarea
                 className="input-field min-h-[100px] resize-vertical"
-                placeholder="Ex: Quais são os prós e contras da fusão entre as empresas ABC e XYZ? Considere impactos financeiros, culturais e de mercado."
+                placeholder={"Descreva:\n• Contexto (o que já existe, o que já tentou)\n• Restrições (prazo, orçamento, equipe, \"não pode\")\n• Dados relevantes (números, preços, prazos reais)"}
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
               />
               <p className="text-body-xs text-gray-400 mt-1">
-                Quanto mais detalhado o tópico, melhores serão as respostas dos agentes
+                Sem contexto real, os agentes viram consultores genéricos. Dê fatos, números e restrições.
+              </p>
+            </div>
+            <div>
+              <label className="label">Objetivos e Critérios de Sucesso</label>
+              <textarea
+                className="input-field min-h-[80px] resize-vertical"
+                placeholder={"Ex:\n• Objetivo: escolher 2 produtos para lançar\n• Sucesso em 7 dias: 3 protótipos orçados\n• Sucesso em 30 dias: 1 venda piloto fechada\n• Margem mínima: 35%"}
+                value={objectives}
+                onChange={(e) => setObjectives(e.target.value)}
+              />
+              <p className="text-body-xs text-gray-400 mt-1">
+                Os agentes vão trabalhar para atingir esses objetivos. Defina o que é "pronto".
               </p>
             </div>
             <div>
@@ -154,25 +195,35 @@ export default function MeetingCreatePage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
                 {Object.entries(MEETING_TYPES).map(([key, config]) => {
                   const Icon = iconMap[config.icon] || MessageSquare
+                  const desc = typeDescriptions[key as keyof typeof typeDescriptions]
                   return (
                     <button
                       key={key}
                       onClick={() => setMeetingType(key)}
-                      className={`p-4 rounded-xl border-2 text-center transition-all ${
+                      className={`p-4 rounded-xl border-2 text-left transition-all ${
                         meetingType === key
                           ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                           : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
                       }`}
                     >
-                      <Icon className={`w-6 h-6 mx-auto mb-2 ${meetingType === key ? 'text-primary-500' : 'text-gray-400'}`} />
+                      <Icon className={`w-5 h-5 mb-1.5 ${meetingType === key ? 'text-primary-500' : 'text-gray-400'}`} />
                       <span className="text-body-sm font-medium block">{config.label}</span>
-                      {meetingType === key && (
-                        <p className="text-body-xs text-gray-500 mt-1">{typeDescriptions[key]}</p>
-                      )}
+                      <p className="text-body-xs text-gray-500 mt-0.5">{desc?.short || ''}</p>
                     </button>
                   )
                 })}
               </div>
+              {/* Template details */}
+              {typeDescriptions[meetingType as keyof typeof typeDescriptions] && (
+                <div className="mt-3 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-800">
+                  <p className="text-body-xs font-medium text-primary-700 dark:text-primary-300">
+                    Saída esperada: {typeDescriptions[meetingType as keyof typeof typeDescriptions].output}
+                  </p>
+                  <p className="text-body-xs text-primary-600 dark:text-primary-400 mt-1">
+                    Encerra quando: {typeDescriptions[meetingType as keyof typeof typeDescriptions].stops}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </Card>
@@ -349,8 +400,9 @@ export default function MeetingCreatePage() {
                   topic: topic || undefined,
                   meeting_type: meetingType as string,
                   parameters: params,
+                  objectives: objectives ? [objectives] : [],
                   agent_ids: selectedAgents,
-                })
+                } as any)
                 await startMeeting(meeting.id)
                 navigate(`/meetings/${meeting.id}/room`)
                 toast.success('Sessão iniciada! Clique em "Próximo turno" para os agentes começarem.')

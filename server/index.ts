@@ -32,6 +32,9 @@ const __dirname = path.dirname(__filename)
 const app = express()
 const PORT = parseInt(process.env.PORT || '3001')
 
+// Trust proxy (Nginx na frente) — necessário para rate-limit funcionar
+app.set('trust proxy', 1)
+
 // Middleware
 app.use(cors({
   origin: isProd

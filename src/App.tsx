@@ -82,11 +82,23 @@ export default function App() {
   useEffect(() => {
     async function restoreSession() {
       const token = getToken()
+      // Se já está autenticado no store persistido e tem token, validar em background
+      const { isAuthenticated: wasAuthenticated } = useAuthStore.getState()
       if (!token) {
+        // Sem token = deslogado
+        if (wasAuthenticated) {
+          useAuthStore.getState().logout()
+        }
         setLoading(false)
         return
       }
-      setLoading(true)
+      // Se já tem dados persistidos, mostrar imediatamente (sem loading)
+      if (wasAuthenticated) {
+        setLoading(false)
+      } else {
+        setLoading(true)
+      }
+      // Validar token com o servidor
       try {
         const data = await getCurrentUser()
         if (data) {
@@ -95,9 +107,19 @@ export default function App() {
             setWorkspace(data.workspaces[0] as any)
             setMembership({ role: data.workspaces[0].role } as any)
           }
+        } else {
+          // Token inválido ou expirado — limpar
+          const { clearToken: ct } = await import('@/lib/api/client')
+          ct()
+          useAuthStore.getState().logout()
         }
       } catch {
-        // Token inválido
+        // Erro de rede — manter dados persistidos se existirem, senão limpar
+        if (!wasAuthenticated) {
+          const { clearToken: ct } = await import('@/lib/api/client')
+          ct()
+          useAuthStore.getState().logout()
+        }
       } finally {
         setLoading(false)
       }
