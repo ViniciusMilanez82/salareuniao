@@ -36,7 +36,9 @@ export async function api<T = unknown>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
-    throw new Error(error.error || `HTTP ${response.status}`)
+    const err = new Error(error.error || `HTTP ${response.status}`) as Error & { status?: number }
+    err.status = response.status
+    throw err
   }
 
   return response.json()

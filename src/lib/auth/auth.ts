@@ -34,12 +34,16 @@ export async function signOut() {
   clearToken()
 }
 
-export async function getCurrentUser() {
+export async function getCurrentUser(): Promise<MeResponse | null> {
   try {
     const data = await api<MeResponse>('/auth/me')
     return data
-  } catch {
-    return null
+  } catch (err: unknown) {
+    const status = (err as Error & { status?: number })?.status
+    // Só retorna null quando o servidor responde 401 (token inválido/expirado)
+    if (status === 401) return null
+    // Erro de rede ou outro: repassa para o chamador decidir (não limpar token)
+    throw err
   }
 }
 

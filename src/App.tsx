@@ -79,23 +79,13 @@ export default function App() {
   useEffect(() => {
     async function restoreSession() {
       const token = getToken()
-      // Se já está autenticado no store persistido e tem token, validar em background
-      const { isAuthenticated: wasAuthenticated } = useAuthStore.getState()
       if (!token) {
-        // Sem token = deslogado
-        if (wasAuthenticated) {
-          useAuthStore.getState().logout()
-        }
+        const { isAuthenticated } = useAuthStore.getState()
+        if (isAuthenticated) useAuthStore.getState().logout()
         setLoading(false)
         return
       }
-      // Se já tem dados persistidos, mostrar imediatamente (sem loading)
-      if (wasAuthenticated) {
-        setLoading(false)
-      } else {
-        setLoading(true)
-      }
-      // Validar token com o servidor
+      setLoading(true)
       try {
         const data = await getCurrentUser()
         if (data) {
@@ -105,17 +95,18 @@ export default function App() {
             setMembership({ role: data.workspaces[0].role } as WorkspaceMember)
           }
         } else {
-          // Token inválido ou expirado — limpar
+          // 401: token inválido ou expirado — limpar sessão
           const { clearToken: ct } = await import('@/lib/api/client')
           ct()
           useAuthStore.getState().logout()
         }
       } catch {
-        // Erro de rede — manter dados persistidos se existirem, senão limpar
-        if (!wasAuthenticated) {
-          const { clearToken: ct } = await import('@/lib/api/client')
-          ct()
-          useAuthStore.getState().logout()
+        // Erro de rede ou servidor: NÃO limpar token; manter store persistido se existir
+        const { user, workspace, membership } = useAuthStore.getState()
+        if (user) {
+          setUser(user)
+          if (workspace) setWorkspace(workspace)
+          if (membership) setMembership(membership)
         }
       } finally {
         setLoading(false)
