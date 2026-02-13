@@ -12,8 +12,12 @@ dotenv.config()
 
 const isProd = process.env.NODE_ENV === 'production'
 if (isProd) {
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'fallback-secret') {
-    console.error('❌ Em produção defina a variável de ambiente JWT_SECRET (valor seguro e único).')
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    console.error('❌ FATAL: Em produção, JWT_SECRET deve ter pelo menos 32 caracteres.')
+    process.exit(1)
+  }
+  if (!process.env.CORS_ORIGIN) {
+    console.error('❌ FATAL: Em produção, CORS_ORIGIN deve ser definido com o domínio do frontend.')
     process.exit(1)
   }
 }
@@ -27,8 +31,6 @@ import agentRoutes from './routes/agents.js'
 import meetingRoutes from './routes/meetings.js'
 import workspaceRoutes from './routes/workspace.js'
 import integrationRoutes from './routes/integrations.js'
-import contactsRoutes from './routes/contacts.js'
-import dealsRoutes from './routes/deals.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -39,17 +41,14 @@ const PORT = parseInt(process.env.PORT || '3001')
 // Trust proxy (Nginx na frente) — necessário para rate-limit funcionar
 app.set('trust proxy', 1)
 
-// Middleware — RS-003: em produção CORS restritivo (sem *)
-if (isProd && !process.env.CORS_ORIGIN) {
-  console.warn('⚠️ CORS_ORIGIN não definido em produção. Defina com o domínio do frontend (ex: http://187.77.32.67).')
-}
+// CORS: em produção já validado acima (exit se não definido)
 app.use(cors({
   origin: isProd
     ? (process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map((o: string) => o.trim()).filter(Boolean) : ['http://localhost:5173'])
     : ['http://localhost:5173', 'http://localhost:3000'],
   credentials: true,
 }))
-app.use(express.json({ limit: '10mb' }))
+app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
 
 // Logging middleware
@@ -81,8 +80,6 @@ app.use('/api/agents', agentRoutes)
 app.use('/api/meetings', meetingRoutes)
 app.use('/api/workspaces', workspaceRoutes)
 app.use('/api/integrations', integrationRoutes)
-app.use('/api/contacts', contactsRoutes)
-app.use('/api/deals', dealsRoutes)
 
 // Servir frontend em produção (dev: server/ -> ../dist; prod: server/dist/ -> ../../dist)
 if (isProd) {
@@ -124,7 +121,7 @@ const io = new SocketIOServer(server, {
   },
 })
 io.use(async (socket, next) => {
-  const token = (socket.handshake.auth?.token as string) || (socket.handshake.query?.token as string)
+  const token = socket.handshake.auth?.token as string
   const room = socket.handshake.query.room as string
   if (!token) {
     return next(new Error('Token não fornecido'))

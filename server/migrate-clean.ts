@@ -8,14 +8,25 @@ dotenv.config()
 const { Client } = pg
 
 async function migrate() {
-  console.log('🔄 Iniciando migração PostgreSQL (VPS)...\n')
+  console.log('🔄 Iniciando migração PostgreSQL...\n')
+
+  const host = process.env.POSTGRES_HOST || 'localhost'
+  const port = parseInt(process.env.POSTGRES_PORT || '5432', 10)
+  const user = process.env.POSTGRES_USER
+  const password = process.env.POSTGRES_PASSWORD
+  const database = process.env.POSTGRES_DB
+
+  if (!user || !database) {
+    console.error('❌ POSTGRES_USER e POSTGRES_DB são obrigatórios.')
+    process.exit(1)
+  }
 
   const client = new Client({
-    host: process.env.POSTGRES_HOST,
-    port: parseInt(process.env.POSTGRES_PORT || '5432'),
-    user: process.env.POSTGRES_USER,
-    password: process.env.POSTGRES_PASSWORD,
-    database: process.env.POSTGRES_DB,
+    host,
+    port,
+    user,
+    password: password || undefined,
+    database,
     ssl: false,
     connectionTimeoutMillis: 15000,
   })
@@ -85,6 +96,19 @@ async function migrate() {
       }
     }
 
+    // Migração 00004 - security and integrity hardening (CHECKs)
+    const migration4Path = path.join(process.cwd(), 'supabase', 'migrations', '00004_security_and_integrity_hardening.sql')
+    if (fs.existsSync(migration4Path)) {
+      try {
+        const sql4 = fs.readFileSync(migration4Path, 'utf-8')
+        await client.query(sql4)
+        console.log('✅ Migração 00004 (security hardening) aplicada')
+      } catch (e4: any) {
+        if (e4?.message?.includes('already exists') || e4?.code === '42710') console.log('   (constraints já existem)')
+        else throw e4
+      }
+    }
+
     console.log('✅ Migração concluída!\n')
 
     // Verificar tabelas
@@ -124,22 +148,27 @@ async function migrate() {
     console.log('\n🎉 Banco de dados pronto para uso!')
 
   } catch (err: any) {
-    console.error('\n❌ Erro na migração:', err.message)
-    if (err.position) {
+    const msg = err?.message ?? err?.code ?? String(err)
+    console.error('\n❌ Erro na migração:', msg || '(sem mensagem)')
+    if (err?.code) console.error('   Código:', err.code)
+    if (err?.position) {
       console.error('   Posição no SQL:', err.position)
-      // Mostrar trecho do SQL próximo ao erro
-      const migrationPath = path.join(process.cwd(), 'supabase', 'migrations', '00001_initial_schema.sql')
-      const sql = fs.readFileSync(migrationPath, 'utf-8')
-      const pos = parseInt(err.position)
-      const start = Math.max(0, pos - 100)
-      const end = Math.min(sql.length, pos + 100)
-      console.error('   Trecho:', sql.substring(start, end).replace(/\n/g, ' ').trim())
+      try {
+        const migrationPath = path.join(process.cwd(), 'supabase', 'migrations', '00001_initial_schema.sql')
+        const sql = fs.readFileSync(migrationPath, 'utf-8')
+        const pos = parseInt(err.position, 10)
+        const start = Math.max(0, pos - 100)
+        const end = Math.min(sql.length, pos + 100)
+        console.error('   Trecho:', sql.substring(start, end).replace(/\n/g, ' ').trim())
+      } catch (_) {}
     }
-    if (err.detail) console.error('   Detalhe:', err.detail)
+    if (err?.detail) console.error('   Detalhe:', err.detail)
     process.exit(1)
   } finally {
-    await client.end()
-    console.log('\n🔌 Conexão encerrada.')
+    try {
+      await client.end()
+      console.log('\n🔌 Conexão encerrada.')
+    } catch (_) {}
   }
 }
 

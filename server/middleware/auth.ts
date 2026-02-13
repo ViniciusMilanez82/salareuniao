@@ -3,13 +3,10 @@ import jwt from 'jsonwebtoken'
 import { query } from '../db.js'
 
 const JWT_SECRET = process.env.JWT_SECRET
-if (!JWT_SECRET || JWT_SECRET.length < 20) {
-  console.error('❌ FATAL: JWT_SECRET não definido ou muito curto. Defina no .env (mínimo 20 caracteres).')
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1)
-  }
+if (!JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET não definido. Defina no .env.')
 }
-const SECRET = JWT_SECRET || 'dev-only-fallback-secret-never-use-in-production'
+const SECRET = JWT_SECRET
 
 export interface AuthUser {
   id: string

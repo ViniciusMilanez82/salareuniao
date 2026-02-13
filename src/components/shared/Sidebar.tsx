@@ -8,14 +8,10 @@ import {
   Calendar,
   BarChart3,
   Settings,
-  FolderArchive,
-  Handshake,
-  Contact,
   Shield,
   Key,
   ChevronLeft,
   ChevronRight,
-  HelpCircle,
 } from 'lucide-react'
 import { useState } from 'react'
 import { ROUTES } from '@/config/routes'
@@ -24,9 +20,6 @@ const mainNav = [
   { to: ROUTES.DASHBOARD, icon: LayoutDashboard, label: 'Painel', tooltip: 'Visão geral do workspace' },
   { to: ROUTES.MEETINGS, icon: Calendar, label: 'Sessões', tooltip: 'Criar e gerenciar debates com IA' },
   { to: ROUTES.AGENTS, icon: Bot, label: 'Agentes', tooltip: 'Seus assistentes de IA personalizados' },
-  { to: ROUTES.SESSIONS_ARCHIVE, icon: FolderArchive, label: 'Arquivo', tooltip: 'Sessões concluídas e exportação' },
-  { to: ROUTES.CONTACTS, icon: Contact, label: 'Contatos', tooltip: 'Sua rede de contatos profissionais' },
-  { to: ROUTES.DEALS, icon: Handshake, label: 'Negócios', tooltip: 'Pipeline de vendas e oportunidades' },
   { to: ROUTES.DASHBOARD_ANALYTICS, icon: BarChart3, label: 'Métricas', tooltip: 'Estatísticas e insights' },
 ]
 

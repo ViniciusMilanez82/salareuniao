@@ -1,18 +1,16 @@
 import { useAuthStore } from '@/stores/useAuthStore'
 import { Avatar } from '@/components/ui/Avatar'
-import { Bell, Search, Moon, Sun, LogOut, User, ChevronDown, X, Calendar, Bot, Contact, Handshake, Loader2 } from 'lucide-react'
+import { Bell, Search, Moon, Sun, LogOut, User, ChevronDown, X, Calendar, Bot, Loader2 } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signOut } from '@/lib/supabase/auth'
 import { ROUTES } from '@/config/routes'
 import { fetchMeetings } from '@/lib/api/meetings'
 import { fetchAgents } from '@/lib/api/agents'
-import { fetchContacts } from '@/lib/api/contacts'
-import { fetchDeals } from '@/lib/api/deals'
 
 type SearchResult = {
   id: string
-  type: 'meeting' | 'agent' | 'contact' | 'deal'
+  type: 'meeting' | 'agent'
   title: string
   subtitle: string
   route: string
@@ -71,16 +69,13 @@ export function Header() {
     setShowResults(true)
     try {
       const qLower = q.toLowerCase()
-      const [meetings, agents, contacts, deals] = await Promise.all([
+      const [meetings, agents] = await Promise.all([
         fetchMeetings(workspace.id).catch(() => []),
         fetchAgents(workspace.id).catch(() => []),
-        fetchContacts(workspace.id).catch(() => []),
-        fetchDeals(workspace.id).catch(() => []),
       ])
 
       const results: SearchResult[] = []
 
-      // Filtrar meetings
       ;(meetings as { id: string; title: string; status: string; meeting_type: string }[])
         .filter(m => m.title?.toLowerCase().includes(qLower))
         .slice(0, 4)
@@ -91,7 +86,6 @@ export function Header() {
           route: `/meetings/${m.id}/room`,
         }))
 
-      // Filtrar agents
       ;(agents as { id: string; name: string; role: string }[])
         .filter(a => a.name?.toLowerCase().includes(qLower) || a.role?.toLowerCase().includes(qLower))
         .slice(0, 4)
@@ -100,28 +94,6 @@ export function Header() {
           title: a.name,
           subtitle: `Agente · ${a.role}`,
           route: `/agents/${a.id}/edit`,
-        }))
-
-      // Filtrar contacts
-      ;(contacts as { id: string; name: string; email?: string | null; company?: string | null }[])
-        .filter(c => c.name?.toLowerCase().includes(qLower) || c.email?.toLowerCase().includes(qLower))
-        .slice(0, 3)
-        .forEach(c => results.push({
-          id: c.id, type: 'contact',
-          title: c.name,
-          subtitle: `Contato · ${c.company || c.email || ''}`,
-          route: ROUTES.CONTACTS,
-        }))
-
-      // Filtrar deals
-      ;(deals as { id: string; title: string; status: string; value?: number | null }[])
-        .filter(d => d.title?.toLowerCase().includes(qLower))
-        .slice(0, 3)
-        .forEach(d => results.push({
-          id: d.id, type: 'deal',
-          title: d.title,
-          subtitle: `Negócio · ${d.status}`,
-          route: ROUTES.DEALS,
         }))
 
       setSearchResults(results)
@@ -149,8 +121,6 @@ export function Header() {
   const typeIcons: Record<string, React.ReactNode> = {
     meeting: <Calendar className="w-4 h-4 text-primary-500" />,
     agent: <Bot className="w-4 h-4 text-violet-500" />,
-    contact: <Contact className="w-4 h-4 text-secondary-500" />,
-    deal: <Handshake className="w-4 h-4 text-accent-500" />,
   }
 
   // Notificações mockadas (prontas para integrar com backend)
@@ -170,7 +140,7 @@ export function Header() {
           <input
             ref={inputRef}
             type="text"
-            placeholder="Buscar sessões, agentes, contatos... (Ctrl+K)"
+            placeholder="Buscar sessões e agentes (Ctrl+K)"
             className="w-full h-10 pl-10 pr-10 rounded-full bg-gray-100 dark:bg-surface-dark text-body-sm
                        border-0 focus:outline-none focus:ring-2 focus:ring-primary-400/50
                        placeholder:text-gray-400"

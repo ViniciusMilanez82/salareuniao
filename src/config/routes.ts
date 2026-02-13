@@ -22,17 +22,6 @@ export const ROUTES = {
   AGENT_DETAIL: (id: string) => `/agents/${id}`,
   AGENT_STUDIO: (id: string) => `/agents/${id}/studio`,
 
-  // Sessions Archive
-  SESSIONS_ARCHIVE: '/sessions/archive',
-
-  // Contacts
-  CONTACTS: '/contacts',
-
-  // Deals
-  DEALS: '/deals',
-  DEALS_PIPELINE: '/deals/pipeline',
-  DEAL_DETAIL: (id: string) => `/deals/${id}`,
-
   // Settings
   SETTINGS: '/settings',
   SETTINGS_PROFILE: '/settings/profile',

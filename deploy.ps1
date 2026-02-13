@@ -46,9 +46,12 @@ Write-Host "`n[5/7] Seed dos 15 agentes (ws-default)..." -ForegroundColor Yellow
 ssh $VPS "cd $REMOTE_DIR && cat server/seed-agents.sql | docker compose exec -T postgres psql -U $DB_USER -d $DB_NAME -f - 2>/dev/null || true"
 if (-not $?) { Write-Host "Aviso: seed-agents pode ter falhado" -ForegroundColor Yellow }
 
-Write-Host "`n[6/7] Node + Migrate..." -ForegroundColor Yellow
-ssh $VPS "cd $REMOTE_DIR && (command -v node >/dev/null 2>&1 || (curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs)) && npm install && (npm run migrate || true)"
-if (-not $?) { throw "Comandos na VPS falharam." }
+# Migração roda DENTRO do container app (consegue acessar postgres pela rede Docker)
+Write-Host "`n[6/7] Migração do banco (dentro do container app)..." -ForegroundColor Yellow
+ssh $VPS "cd $REMOTE_DIR && docker compose exec -T app node server/dist/migrate-clean.js"
+if (-not $?) {
+    Write-Host "Aviso: migração falhou ou migrate-clean.js não encontrado (schema pode já estar aplicado)." -ForegroundColor Yellow
+}
 
 # 6. Health check (aguarda app subir)
 Write-Host "`n[7/7] Aguardando app (10s) e verificando health..." -ForegroundColor Yellow

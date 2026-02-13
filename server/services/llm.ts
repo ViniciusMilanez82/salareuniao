@@ -42,15 +42,29 @@ export async function completeWithOpenAI(
   const apiKey = await getIntegrationKey(workspaceId, 'openai')
   if (!apiKey) throw new Error('OpenAI API key não configurada. Configure em Admin > Integrações.')
 
-  const openai = new OpenAI({ apiKey })
+  const openai = new OpenAI({ apiKey, timeout: 60000 })
   const model = options.model || 'gpt-4o-mini'
-  const response = await openai.chat.completions.create({
-    model,
-    messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
-    temperature: options.temperature ?? 0.7,
-    max_tokens: options.maxTokens ?? 2000,
-  })
-  return response.choices[0]?.message?.content?.trim() || ''
+  try {
+    const response = await openai.chat.completions.create({
+      model,
+      messages: messages as OpenAI.Chat.ChatCompletionMessageParam[],
+      temperature: options.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? 2000,
+    })
+    const content = response.choices[0]?.message?.content?.trim()
+    if (!content) throw new Error('Resposta vazia do modelo.')
+    return content
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string }
+    const safeMessage =
+      err?.status === 429
+        ? 'Limite de requisições da API atingido. Tente novamente em alguns segundos.'
+        : err?.status === 401
+          ? 'Chave de API inválida ou expirada. Verifique em Admin > Integrações.'
+          : 'Erro ao gerar resposta do agente. Tente novamente.'
+    console.error('[LLM] Erro OpenAI (' + model + '):', err?.message || error)
+    throw new Error(safeMessage)
+  }
 }
 
 export async function completeWithAnthropic(

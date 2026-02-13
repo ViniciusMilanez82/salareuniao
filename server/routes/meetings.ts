@@ -1,9 +1,29 @@
 import { Router, Response } from 'express'
 import rateLimit from 'express-rate-limit'
+import { z } from 'zod'
 import { query } from '../db.js'
 import { authMiddleware, AuthRequest, canAccessWorkspace } from '../middleware/auth.js'
 import { validateUuidParam } from '../middleware/validateUuid.js'
+import { validateRequest } from '../middleware/validateRequest.js'
 import { emitToMeeting } from '../socket.js'
+
+const createMeetingSchema = z.object({
+  body: z.object({
+    workspace_id: z.string().uuid('workspace_id inválido'),
+    title: z.string().min(1, 'Título é obrigatório'),
+    topic: z.string().min(5, 'O tópico deve ter pelo menos 5 caracteres').optional(),
+    agent_ids: z.array(z.string().uuid('ID de agente inválido')).optional(),
+    description: z.string().optional(),
+    objectives: z.any().optional(),
+    meeting_type: z.string().optional(),
+    scheduled_start: z.string().optional(),
+    scheduled_end: z.string().optional(),
+    agenda: z.any().optional(),
+    parameters: z.any().optional(),
+    settings: z.any().optional(),
+    tags: z.array(z.any()).optional(),
+  }),
+})
 
 const router = Router()
 router.use(authMiddleware)
@@ -97,16 +117,13 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 })
 
 // POST /api/meetings
-router.post('/', async (req: AuthRequest, res: Response) => {
+router.post('/', validateRequest(createMeetingSchema), async (req: AuthRequest, res: Response) => {
   try {
     const {
       workspace_id, title, description, topic, objectives, meeting_type,
       scheduled_start, scheduled_end, agenda, parameters, settings, tags, agent_ids
     } = req.body
 
-    if (!workspace_id || !title) {
-      return res.status(400).json({ error: 'workspace_id e title são obrigatórios' })
-    }
     if (!req.user?.id) return res.status(401).json({ error: 'Não autenticado' })
     const allowed = await canAccessWorkspace(workspace_id, req.user.id)
     if (!allowed) return res.status(403).json({ error: 'Sem acesso a este workspace' })

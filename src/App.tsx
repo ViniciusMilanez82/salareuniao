@@ -1,12 +1,15 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { ErrorBoundary } from 'react-error-boundary'
 import { AuthLayout } from '@/app/layouts/AuthLayout'
 import { MainLayout } from '@/app/layouts/MainLayout'
 import { MeetingLayout } from '@/app/layouts/MeetingLayout'
+import { ErrorBoundaryFallback } from '@/components/shared/ErrorBoundaryFallback'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { getCurrentUser } from '@/lib/supabase/auth'
 import { getToken } from '@/lib/api/client'
 import { useEffect } from 'react'
+import type { User, Workspace, WorkspaceMember } from '@/types/database.types'
 
 // Auth Pages
 import LoginPage from '@/app/routes/auth/LoginPage'
@@ -26,15 +29,6 @@ import AgentEditPage from '@/app/routes/agents/edit'
 import SessionsListPage from '@/app/routes/meetings/index'
 import MeetingCreatePage from '@/app/routes/meetings/create'
 import MeetingRoomPage from '@/app/routes/meetings/room'
-
-// Sessions Archive
-import SessionArchivePage from '@/app/routes/sessions/archive'
-
-// Contacts
-import ContactsPage from '@/app/routes/contacts/index'
-
-// Deals
-import DealsPage from '@/app/routes/deals/index'
 
 // Settings
 import SettingsPage from '@/app/routes/settings/index'
@@ -105,10 +99,10 @@ export default function App() {
       try {
         const data = await getCurrentUser()
         if (data) {
-          setUser(data.user as any)
+          setUser(data.user as User)
           if (data.workspaces?.length) {
-            setWorkspace(data.workspaces[0] as any)
-            setMembership({ role: data.workspaces[0].role } as any)
+            setWorkspace(data.workspaces[0] as Workspace)
+            setMembership({ role: data.workspaces[0].role } as WorkspaceMember)
           }
         } else {
           // Token inválido ou expirado — limpar
@@ -139,6 +133,7 @@ export default function App() {
           style: { borderRadius: '12px', padding: '12px 16px' },
         }}
       />
+      <ErrorBoundary FallbackComponent={ErrorBoundaryFallback} onReset={() => window.location.reload()}>
       <Routes>
         {/* Auth Routes */}
         <Route element={<AuthLayout />}>
@@ -166,12 +161,6 @@ export default function App() {
           <Route path="/agents/create" element={<AgentCreatePage />} />
           <Route path="/agents/:id/edit" element={<AgentEditPage />} />
 
-          <Route path="/sessions/archive" element={<SessionArchivePage />} />
-
-          <Route path="/contacts" element={<ContactsPage />} />
-
-          <Route path="/deals" element={<DealsPage />} />
-
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/settings/*" element={<SettingsPage />} />
 
@@ -185,6 +174,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </ErrorBoundary>
     </BrowserRouter>
   )
 }

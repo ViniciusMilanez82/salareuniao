@@ -5,11 +5,13 @@
  * - Passa meeting system prompt + addendum para o LLM
  * - Valida densidade da resposta (rejeita "concordo" puro)
  */
-import { query } from '../db.js'
+import { query, pool } from '../db.js'
 import { generateAgentResponse } from './llm.js'
 import { webSearch } from './search.js'
 import { getAgentMemories, saveAgentMemory } from './agent-memory.js'
 import { emitToMeeting } from '../socket.js'
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const MAX_CONTEXT_TRANSCRIPTS = 12
 const MAX_CHARS_PER_TRANSCRIPT = 300
@@ -29,7 +31,7 @@ type AgentRow = {
   agent_name: string
   agent_role: string
   system_prompt: string
-  model_settings: any
+  model_settings: { model?: string; temperature?: number; maxTokens?: number } | null
   speaking_order: number
   personality_traits?: Record<string, unknown> | null
   behavior_settings?: Record<string, unknown> | null
@@ -101,6 +103,13 @@ export async function runDebateTurn(
   workspaceId: string,
   provider: 'openai' | 'anthropic' = 'openai'
 ): Promise<{ transcript: Record<string, unknown>; done?: boolean }> {
+  if (!UUID_REGEX.test(meetingId)) {
+    throw new Error('ID de reunião inválido. Formato UUID esperado.')
+  }
+  if (!UUID_REGEX.test(workspaceId)) {
+    throw new Error('ID de workspace inválido. Formato UUID esperado.')
+  }
+
   // 1. Buscar meeting COM metadata, meeting_type, objectives, parameters
   const meetingRes = await query(
     `SELECT id, title, topic, status, meeting_type, metadata,
@@ -172,7 +181,12 @@ export async function runDebateTurn(
         .map((k) => `[${k.title}]: ${k.content.slice(0, 200)}`)
         .join('\n')
     }
-  } catch { /* tabela pode não existir */ }
+  } catch (knowledgeError: unknown) {
+    const code = (knowledgeError as { code?: string })?.code
+    if (code !== '42P01') {
+      console.error(`[CONHECIMENTO] Erro ao buscar conhecimento do agente ${nextAgent.agent_name}:`, knowledgeError)
+    }
+  }
 
   // Truncar system_prompt
   let sysPrompt = nextAgent.system_prompt || ''
@@ -255,17 +269,32 @@ export async function runDebateTurn(
             sessionId: meetingId, importance: 0.7,
           })
         }
-      } catch { /* silencioso */ }
+      } catch (searchError) {
+        console.warn(`[PESQUISA] Falha na busca web para "${searchQuery}":`, searchError)
+        response += '\n\n[Nota: A pesquisa web não pôde ser realizada neste momento.]'
+      }
     }
   }
 
-  // 9. Salvar transcript
-  const insertRes = await query(
-    `INSERT INTO transcripts (meeting_id, sequence_number, speaker_type, speaker_id, speaker_name, content, content_type, timestamp_start)
-     VALUES ($1, (SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM transcripts WHERE meeting_id = $1), 'ai_agent', $2, $3, $4, 'speech', NOW())
-     RETURNING id, sequence_number, speaker_name, speaker_id, content`,
-    [meetingId, nextAgent.agent_id, nextAgent.agent_name, response]
-  )
+  // 9. Salvar transcript (com lock para evitar race condition em sequence_number)
+  const client = await pool.connect()
+  let insertRes: { rows: { id: string; sequence_number: number; speaker_name: string; speaker_id: string; content: string }[] }
+  try {
+    await client.query('BEGIN')
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [meetingId])
+    insertRes = await client.query(
+      `INSERT INTO transcripts (meeting_id, sequence_number, speaker_type, speaker_id, speaker_name, content, content_type, timestamp_start)
+       VALUES ($1, (SELECT COALESCE(MAX(sequence_number), 0) + 1 FROM transcripts WHERE meeting_id = $1), 'ai_agent', $2, $3, $4, 'speech', NOW())
+       RETURNING id, sequence_number, speaker_name, speaker_id, content`,
+      [meetingId, nextAgent.agent_id, nextAgent.agent_name, response]
+    )
+    await client.query('COMMIT')
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw e
+  } finally {
+    client.release()
+  }
   const row = insertRes.rows[0]
   const nextSeq = row.sequence_number
   const transcriptPayload = {
@@ -284,11 +313,15 @@ export async function runDebateTurn(
     transcripts.length > 0 ? `Último: ${transcripts[transcripts.length - 1]?.content?.slice(0, 100)}` : '',
   ].filter(Boolean).join(' | ')
 
-  await saveAgentMemory(nextAgent.agent_id, memoryContent, {
-    sessionId: meetingId,
-    importance: Math.min(0.4 + (nextSeq * 0.05), 0.9),
-    memoryType: 'episodic',
-  }).catch(() => {})
+  try {
+    await saveAgentMemory(nextAgent.agent_id, memoryContent, {
+      sessionId: meetingId,
+      importance: Math.min(0.4 + (nextSeq * 0.05), 0.9),
+      memoryType: 'episodic',
+    })
+  } catch (memoryError) {
+    console.error(`[MEMÓRIA] Falha ao salvar memória do agente ${nextAgent.agent_name}:`, memoryError)
+  }
 
   return {
     transcript: {
