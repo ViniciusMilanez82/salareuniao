@@ -12,7 +12,7 @@ Referências: `PRD_SalaReuniao.md`, `Relatorio_Analise_e_Melhoria_SalaReuniao_v2
 |------|------------|
 | **Personalidade ativa (PRD 4.3.1)** | `personality_traits` e `behavior_settings` são lidos do banco, injetados no prompt do LLM em cada turno (`server/services/llm.ts` + `orchestrator.ts`). |
 | **Segurança RS-001** | Credenciais de admin removidas da tela de login. |
-| **WebSocket / Socket.IO (PRD 4.4.1)** | Servidor Socket.IO em `server/index.ts` e `server/socket.ts`. Salas por `meeting_id`. Emissão de evento `transcript` em tempo real ao salvar cada fala no orquestrador. Frontend em `src/lib/supabase/realtime.ts` usando `socket.io-client`. |
+| **WebSocket / Socket.IO (PRD 4.4.1)** | Servidor Socket.IO em `server/index.ts` e `server/socket.ts`. Salas por `meeting_id`. Emissão de `transcript` ao salvar fala (orquestrador e POST /transcripts) e de `meeting_status` ao encerrar reunião (POST /end). Frontend em `src/lib/supabase/realtime.ts` com `socket.io-client`. |
 
 ### Pendente Fase 1
 

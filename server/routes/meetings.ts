@@ -2,6 +2,7 @@ import { Router, Response } from 'express'
 import { query } from '../db.js'
 import { authMiddleware, AuthRequest, canAccessWorkspace } from '../middleware/auth.js'
 import { validateUuidParam } from '../middleware/validateUuid.js'
+import { emitToMeeting } from '../socket.js'
 
 const router = Router()
 router.use(authMiddleware)
@@ -252,6 +253,7 @@ router.post('/:id/end', async (req: AuthRequest, res: Response) => {
       `UPDATE meetings SET status = 'completed', actual_end = NOW(), summary = $2 WHERE id = $1 RETURNING *`,
       [req.params.id, summary || null]
     )
+    emitToMeeting(req.params.id, 'meeting_status', { status: 'completed' })
     return res.json(result.rows[0])
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro interno' })
@@ -336,8 +338,16 @@ router.post('/:id/transcripts', async (req: AuthRequest, res: Response) => {
       [req.params.id, seqRes.rows[0].next_seq, speaker_type, speaker_id || null,
        speaker_name, content, content_type || 'speech', sentiment_score || null, topics || []]
     )
+    const row = result.rows[0]
+    emitToMeeting(req.params.id, 'transcript', {
+      id: row.id,
+      sequence_number: row.sequence_number,
+      speaker_name: row.speaker_name,
+      speaker_id: row.speaker_id,
+      content: row.content,
+    })
 
-    return res.status(201).json(result.rows[0])
+    return res.status(201).json(row)
   } catch (err: any) {
     return res.status(500).json({ error: 'Erro interno' })
   }
